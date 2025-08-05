@@ -1,0 +1,27 @@
+{
+  "name": "node-lsl",
+  "version": "0.1.0",
+  "description": "LibLSL bindings for Node.js",
+  "main": "index.js",
+  "typings": "index.d.ts",
+  "repository": "https://github.com/urish/node-lsl",
+  "author": "Uri Shaked",
+  "license": "MIT",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "dependencies": {
+    "ref-napi": "^1.4.2",
+    "ffi-napi": "^2.4.5",
+    "ref-array": "git+https://github.com/CalvinLeather/ref-array.git"
+  },
+  "devDependencies": {
+    "jest": "^20.0.4"
+  },
+  "files": [
+    "prebuilt",
+    "index.js",
+    "index.d.ts"
+  ]
+}
