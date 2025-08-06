@@ -1,6 +1,5 @@
 import * as koffi from 'koffi';
 import {
-  ContinuousResolverHandle,
   lsl_resolve_all,
   lsl_resolve_byprop,
   lsl_resolve_bypred,
@@ -123,22 +122,25 @@ export function resolveStream(...args: any[]): StreamInfo[] {
   if (args.length === 0) {
     // No arguments: resolve all streams
     return resolveStreams();
-  } else if (args.length === 1 && typeof args[0] === 'number') {
+  } else if (typeof args[0] === 'number') {
     // Single number: resolve all with timeout
     return resolveStreams(args[0]);
-  } else if (args.length === 2 && typeof args[0] === 'string' && typeof args[1] === 'string') {
-    // Two strings: resolve by property
-    return resolveByProp(args[0], args[1]);
-  } else if (args.length >= 3 && typeof args[0] === 'string' && typeof args[1] === 'string') {
-    // Property with minimum and/or timeout
-    const minimum = typeof args[2] === 'number' ? args[2] : 1;
-    const timeout = typeof args[3] === 'number' ? args[3] : FOREVER;
-    return resolveByProp(args[0], args[1], minimum, timeout);
   } else if (typeof args[0] === 'string') {
-    // Single string: resolve by predicate
-    const minimum = typeof args[1] === 'number' ? args[1] : 1;
-    const timeout = typeof args[2] === 'number' ? args[2] : FOREVER;
-    return resolveByPred(args[0], minimum, timeout);
+    if (args.length === 1) {
+      // Single string: resolve by predicate
+      return resolveByPred(args[0]);
+    } else if (typeof args[1] === 'number') {
+      // String + number: resolve by predicate with minimum
+      return resolveByPred(args[0], args[1]);
+    } else {
+      // String + string: resolve by property
+      if (args.length === 2) {
+        return resolveByProp(args[0], args[1]);
+      } else {
+        // Property with minimum
+        return resolveByProp(args[0], args[1], args[2]);
+      }
+    }
   } else {
     throw new Error('Invalid arguments for resolveStream');
   }
@@ -169,12 +171,21 @@ export class ContinuousResolver {
     pred: string | null = null,
     forgetAfter: number = 5.0
   ) {
-    if (pred) {
+    if (pred !== null) {
+      if (prop !== null || value !== null) {
+        throw new Error(
+          'You can only either pass the prop/value argument or the pred argument, but not both.'
+        );
+      }
       // Use predicate-based resolver
       this.handle = lsl_create_continuous_resolver_bypred(pred, forgetAfter);
-    } else if (prop && value) {
+    } else if (prop !== null && value !== null) {
       // Use property-based resolver
       this.handle = lsl_create_continuous_resolver_byprop(prop, value, forgetAfter);
+    } else if (prop !== null || value !== null) {
+      throw new Error(
+        'If prop is specified, then value must be specified, too, and vice versa.'
+      );
     } else {
       // Resolve all streams
       this.handle = lsl_create_continuous_resolver(forgetAfter);

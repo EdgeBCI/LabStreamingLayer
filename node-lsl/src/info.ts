@@ -1,7 +1,4 @@
-import * as koffi from 'koffi';
 import {
-  StreamInfoHandle,
-  XMLPtr,
   lsl_create_streaminfo,
   lsl_destroy_streaminfo,
   lsl_copy_streaminfo,

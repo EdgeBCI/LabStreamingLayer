@@ -1,10 +1,8 @@
 import * as koffi from 'koffi';
 import {
-  InletHandle,
   lsl_create_inlet,
   lsl_destroy_inlet,
   lsl_get_fullinfo,
-  lsl_get_info_from_inlet,
   lsl_open_stream,
   lsl_close_stream,
   lsl_time_correction,
@@ -112,7 +110,7 @@ export class StreamInlet {
    * @throws TimeoutError if the timeout expires, or LostError if the stream source has been lost.
    */
   info(timeout: number = FOREVER): StreamInfo {
-    const errcode = koffi.alloc('int');
+    const errcode = koffi.alloc('int', 1);
     const result = lsl_get_fullinfo(this.handle, timeout, errcode);
     handleError(koffi.decode(errcode, 'int'));
     return new StreamInfo('', '', 0, 0, 0, '', result);
@@ -128,7 +126,7 @@ export class StreamInlet {
    * @throws TimeoutError if the timeout expires, or LostError if the stream source has been lost.
    */
   openStream(timeout: number = FOREVER): void {
-    const errcode = koffi.alloc('int');
+    const errcode = koffi.alloc('int', 1);
     lsl_open_stream(this.handle, timeout, errcode);
     handleError(koffi.decode(errcode, 'int'));
   }
@@ -158,7 +156,7 @@ export class StreamInlet {
    * @throws TimeoutError if the timeout expires, or LostError if the stream source has been lost.
    */
   timeCorrection(timeout: number = FOREVER): number {
-    const errcode = koffi.alloc('int');
+    const errcode = koffi.alloc('int', 1);
     const result = lsl_time_correction(this.handle, timeout, errcode);
     handleError(koffi.decode(errcode, 'int'));
     return result;
@@ -177,7 +175,7 @@ export class StreamInlet {
    * @throws LostError if the stream source has been lost.
    */
   pullSample(timeout: number = FOREVER): [any[] | null, number | null] {
-    const errcode = koffi.alloc('int');
+    const errcode = koffi.alloc('int', 1);
     let timestamp: number;
     let sample: any[];
 
@@ -254,11 +252,11 @@ export class StreamInlet {
    * @throws LostError if the stream source has been lost.
    */
   pullChunk(timeout: number = 0.0, maxSamples: number = 1024, destObj?: ArrayBufferView): [any[][] | null, number[]] {
-    const errcode = koffi.alloc('int');
+    const errcode = koffi.alloc('int', 1);
     const dataBufferElements = maxSamples * this.channelCount;
     const timestampBuffer = new Float64Array(maxSamples);
     let samplesReceived: number;
-    let flatData: any[];
+    let flatData: any[] | null;
 
     switch (this.channelFormat) {
       case 1: // cfFloat32

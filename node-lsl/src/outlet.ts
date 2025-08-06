@@ -1,6 +1,4 @@
-import * as koffi from 'koffi';
 import {
-  OutletHandle,
   lsl_create_outlet,
   lsl_destroy_outlet,
   lsl_push_sample_ftp,
@@ -29,7 +27,7 @@ import {
   lsl_get_info_from_outlet,
 } from './lib';
 import { StreamInfo } from './info';
-import { handleError, cfString } from './util';
+import { handleError } from './util';
 
 /**
  * A stream outlet.
@@ -106,8 +104,8 @@ export class StreamOutlet {
         result = lsl_push_sample_dtp(this.handle, doubleBuffer, timestamp, pusht);
         break;
       case 3: // cfString
-        const stringPtrs = x.map(s => koffi.allocCString(String(s)));
-        result = lsl_push_sample_strtp(this.handle, stringPtrs, timestamp, pusht);
+        const stringBuffers = x.map(s => Buffer.from(String(s) + '\0', 'utf8'));
+        result = lsl_push_sample_strtp(this.handle, stringBuffers, timestamp, pusht);
         break;
       case 4: // cfInt32
         const int32Buffer = new Int32Array(x);
@@ -210,8 +208,8 @@ export class StreamOutlet {
           result = lsl_push_chunk_dtnp(this.handle, doubleBuffer, dataElements, timestampBuffer, pusht);
           break;
         case 3: // cfString
-          const stringPtrs = flatData.map(s => koffi.allocCString(String(s)));
-          result = lsl_push_chunk_strtnp(this.handle, stringPtrs, dataElements, timestampBuffer, pusht);
+          const stringBuffers = flatData.map(s => Buffer.from(String(s) + '\0', 'utf8'));
+          result = lsl_push_chunk_strtnp(this.handle, stringBuffers, dataElements, timestampBuffer, pusht);
           break;
         case 4: // cfInt32
           const int32Buffer = new Int32Array(flatData);
@@ -244,8 +242,8 @@ export class StreamOutlet {
           result = lsl_push_chunk_dtp(this.handle, doubleBuffer, dataElements, timestamp, pusht);
           break;
         case 3: // cfString
-          const stringPtrs = flatData.map(s => koffi.allocCString(String(s)));
-          result = lsl_push_chunk_strtp(this.handle, stringPtrs, dataElements, timestamp, pusht);
+          const stringBuffers2 = flatData.map(s => Buffer.from(String(s) + '\0', 'utf8'));
+          result = lsl_push_chunk_strtp(this.handle, stringBuffers2, dataElements, timestamp, pusht);
           break;
         case 4: // cfInt32
           const int32Buffer = new Int32Array(flatData);
