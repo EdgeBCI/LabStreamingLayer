@@ -432,4 +432,159 @@ export class StreamInfo {
       }
     }
   }
+
+  /**
+   * Set channel labels (pylsl compatibility)
+   */
+  setChannelLabels(labels: string[]): void {
+    const desc = this.desc();
+    let channels = desc.child('channels');
+    
+    if (!channels) {
+      channels = desc.appendChild('channels');
+    }
+    
+    // Clear existing channels
+    const existingChannels = [];
+    let child = channels.firstChild();
+    while (child) {
+      if (child.name() === 'channel') {
+        existingChannels.push(child);
+      }
+      child = child.nextSibling();
+    }
+    
+    // Remove existing channel elements
+    existingChannels.forEach(() => {
+      channels.removeChild('channel');
+    });
+    
+    // Add new channels with labels
+    for (let i = 0; i < Math.min(labels.length, this.channelCount()); i++) {
+      const channel = channels.appendChild('channel');
+      channel.appendChildValue('label', labels[i]);
+    }
+  }
+
+  /**
+   * Set channel units (pylsl compatibility)
+   */
+  setChannelUnits(units: string[]): void {
+    const desc = this.desc();
+    let channels = desc.child('channels');
+    
+    if (!channels) {
+      channels = desc.appendChild('channels');
+      // Create channel elements if they don't exist
+      for (let i = 0; i < this.channelCount(); i++) {
+        channels.appendChild('channel');
+      }
+    }
+    
+    // Set units for each channel
+    let child = channels.firstChild();
+    let channelIndex = 0;
+    
+    while (child && channelIndex < units.length && channelIndex < this.channelCount()) {
+      if (child.name() === 'channel') {
+        child.setChildValue('unit', units[channelIndex]);
+        channelIndex++;
+      }
+      child = child.nextSibling();
+    }
+  }
+
+  /**
+   * Set channel types (pylsl compatibility)
+   */
+  setChannelTypes(types: string[]): void {
+    const desc = this.desc();
+    let channels = desc.child('channels');
+    
+    if (!channels) {
+      channels = desc.appendChild('channels');
+      // Create channel elements if they don't exist
+      for (let i = 0; i < this.channelCount(); i++) {
+        channels.appendChild('channel');
+      }
+    }
+    
+    // Set types for each channel
+    let child = channels.firstChild();
+    let channelIndex = 0;
+    
+    while (child && channelIndex < types.length && channelIndex < this.channelCount()) {
+      if (child.name() === 'channel') {
+        child.setChildValue('type', types[channelIndex]);
+        channelIndex++;
+      }
+      child = child.nextSibling();
+    }
+  }
+
+  /**
+   * Get channel labels (pylsl compatibility)
+   */
+  getChannelLabels(): string[] {
+    const labels: string[] = [];
+    const desc = this.desc();
+    const channels = desc.child('channels');
+    
+    if (channels) {
+      let child = channels.firstChild();
+      while (child) {
+        if (child.name() === 'channel') {
+          const label = child.childValue('label');
+          labels.push(label || '');
+        }
+        child = child.nextSibling();
+      }
+    }
+    
+    return labels;
+  }
+
+  /**
+   * Get channel units (pylsl compatibility)
+   */
+  getChannelUnits(): string[] {
+    const units: string[] = [];
+    const desc = this.desc();
+    const channels = desc.child('channels');
+    
+    if (channels) {
+      let child = channels.firstChild();
+      while (child) {
+        if (child.name() === 'channel') {
+          const unit = child.childValue('unit');
+          units.push(unit || '');
+        }
+        child = child.nextSibling();
+      }
+    }
+    
+    return units;
+  }
+
+  /**
+   * Get channel types (pylsl compatibility)
+   */
+  getChannelTypes(): string[] {
+    const types: string[] = [];
+    const desc = this.desc();
+    const channels = desc.child('channels');
+    
+    if (channels) {
+      let child = channels.firstChild();
+      while (child) {
+        if (child.name() === 'channel') {
+          const type = child.childValue('type');
+          types.push(type || '');
+        }
+        child = child.nextSibling();
+      }
+    }
+    
+    return types;
+  }
 }

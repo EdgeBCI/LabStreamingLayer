@@ -13,18 +13,30 @@ function findLibrary(): string {
     return envPath;
   }
 
-  // Determine architecture
+  // Determine architecture and platform
   const arch = os.arch();
+  const platform = process.platform;
   let libName: string;
+  let archSuffix: string;
   
-  if (process.platform === 'win32') {
-    if (arch === 'x64') {
-      libName = 'lsl_amd64.dll';
-    } else if (arch === 'ia32') {
-      libName = 'lsl_i386.dll';
-    } else {
+  // Map Node.js arch to LSL arch naming
+  switch (arch) {
+    case 'x64':
+      archSuffix = 'amd64';
+      break;
+    case 'ia32':
+      archSuffix = 'i386';
+      break;
+    case 'arm64':
+      archSuffix = 'arm64';
+      break;
+    default:
       throw new Error(`Unsupported architecture: ${arch}`);
-    }
+  }
+  
+  // Platform-specific library naming and paths
+  if (platform === 'win32') {
+    libName = `lsl_${archSuffix}.dll`;
     
     // Look in prebuild folder
     const prebuildPath = path.join(__dirname, '..', '..', 'prebuild', libName);
@@ -34,17 +46,83 @@ function findLibrary(): string {
     
     // Look in lsl_release folder for development
     const releasePath = path.join(__dirname, '..', '..', 'lsl_release', 
-      arch === 'x64' ? 'liblsl-1.16.2-Win_amd64' : 'liblsl-1.16.2-Win_i386', 
-      'bin', 'lsl.dll');
+      `liblsl-1.16.2-Win_${archSuffix}`, 'bin', 'lsl.dll');
     if (fs.existsSync(releasePath)) {
       return releasePath;
     }
+    
+    // Check system PATH for lsl.dll
+    libName = 'lsl.dll';
+    
+  } else if (platform === 'darwin') {
+    // macOS
+    libName = 'liblsl.dylib';
+    
+    // Look in prebuild folder
+    const prebuildPath = path.join(__dirname, '..', '..', 'prebuild', libName);
+    if (fs.existsSync(prebuildPath)) {
+      return prebuildPath;
+    }
+    
+    // Look in lsl_release folder for development
+    const releasePath = path.join(__dirname, '..', '..', 'lsl_release', 
+      `liblsl-1.16.2-OSX_${archSuffix}`, 'lib', libName);
+    if (fs.existsSync(releasePath)) {
+      return releasePath;
+    }
+    
+    // Check common system paths
+    const systemPaths = [
+      '/usr/local/lib/liblsl.dylib',
+      '/opt/homebrew/lib/liblsl.dylib',
+      path.join(os.homedir(), '.local/lib/liblsl.dylib')
+    ];
+    
+    for (const systemPath of systemPaths) {
+      if (fs.existsSync(systemPath)) {
+        return systemPath;
+      }
+    }
+    
+  } else if (platform === 'linux') {
+    // Linux
+    libName = 'liblsl.so';
+    
+    // Look in prebuild folder
+    const prebuildPath = path.join(__dirname, '..', '..', 'prebuild', libName);
+    if (fs.existsSync(prebuildPath)) {
+      return prebuildPath;
+    }
+    
+    // Look in lsl_release folder for development
+    const releasePath = path.join(__dirname, '..', '..', 'lsl_release', 
+      `liblsl-1.16.2-Linux_${archSuffix}`, 'lib', libName);
+    if (fs.existsSync(releasePath)) {
+      return releasePath;
+    }
+    
+    // Check common system paths
+    const systemPaths = [
+      '/usr/lib/liblsl.so',
+      '/usr/local/lib/liblsl.so',
+      '/usr/lib/x86_64-linux-gnu/liblsl.so',
+      path.join(os.homedir(), '.local/lib/liblsl.so')
+    ];
+    
+    for (const systemPath of systemPaths) {
+      if (fs.existsSync(systemPath)) {
+        return systemPath;
+      }
+    }
+    
   } else {
-    // TODO: Add support for macOS and Linux
-    throw new Error(`Platform ${process.platform} not yet supported`);
+    throw new Error(`Unsupported platform: ${platform}`);
   }
   
-  throw new Error('Could not find LSL library. Please ensure lsl.dll is in the prebuild folder.');
+  const platformName = platform === 'win32' ? 'Windows' : 
+                      platform === 'darwin' ? 'macOS' : 'Linux';
+  
+  throw new Error(`Could not find LSL library for ${platformName}. Please ensure the library is installed or set the LSL_LIB environment variable.`);
 }
 
 // Load the library

@@ -1,3 +1,4 @@
+import * as koffi from 'koffi';
 import { 
   createFloatArray, 
   createDoubleArray, 
@@ -164,12 +165,17 @@ export class StreamOutlet {
         break;
       }
       case ChannelFormat.String: {
-        const data = createCharArray(this.channelCount); // String arrays need special handling in koffi
-        // For now, treat strings as char arrays - this may need adjustment based on actual LSL behavior
+        // For string channels, we need to handle string arrays properly
+        const stringArray = koffi.alloc('str', this.channelCount);
+        for (let i = 0; i < this.channelCount; i++) {
+          // Ensure we have string data
+          const str = String(sample[i]);
+          koffi.encode(stringArray, 'str', str, i);
+        }
         if (timestamp === 0.0) {
-          lsl_push_sample_str(this.handle, data);
+          lsl_push_sample_str(this.handle, stringArray);
         } else {
-          lsl_push_sample_strtp(this.handle, data, timestamp, pushthroughFlag);
+          lsl_push_sample_strtp(this.handle, stringArray, timestamp, pushthroughFlag);
         }
         break;
       }
@@ -314,19 +320,23 @@ export class StreamOutlet {
         break;
       }
       case ChannelFormat.String: {
-        const buffer = createCharArray(flatData.length); // String arrays need special handling in koffi
-        // For now, treat strings as char arrays - this may need adjustment based on actual LSL behavior
+        // For string chunks, we need to handle array of string pointers
+        const stringBuffer = koffi.alloc('str', flatData.length);
+        for (let i = 0; i < flatData.length; i++) {
+          const str = String(flatData[i]);
+          koffi.encode(stringBuffer, 'str', str, i);
+        }
         
         if (Array.isArray(timestamp)) {
           const timestampBuffer = createDoubleArray(timestamp.length);
           for (let i = 0; i < timestamp.length; i++) {
             timestampBuffer[i] = timestamp[i];
           }
-          lsl_push_chunk_strtnp(this.handle, buffer, numSamples, timestampBuffer, pushthroughFlag);
+          lsl_push_chunk_strtnp(this.handle, stringBuffer, numSamples, timestampBuffer, pushthroughFlag);
         } else if (timestamp === 0.0) {
-          lsl_push_chunk_str(this.handle, buffer, numSamples);
+          lsl_push_chunk_str(this.handle, stringBuffer, numSamples);
         } else {
-          lsl_push_chunk_strtp(this.handle, buffer, numSamples, timestamp, pushthroughFlag);
+          lsl_push_chunk_strtp(this.handle, stringBuffer, numSamples, timestamp, pushthroughFlag);
         }
         break;
       }
@@ -356,6 +366,20 @@ export class StreamOutlet {
   getInfo(): StreamInfo {
     const infoHandle = lsl_get_info(this.handle);
     return new StreamInfo(infoHandle);
+  }
+
+  /**
+   * Get channel count from the stream info
+   */
+  getChannelCount(): number {
+    return this.channelCount;
+  }
+
+  /**
+   * Get the channel format from the stream info
+   */
+  getChannelFormat(): ChannelFormat {
+    return this.channelFormat;
   }
 
   /**

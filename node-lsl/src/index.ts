@@ -36,6 +36,25 @@ export {
   channelFormatToString,
   stringToChannelFormat,
   getBytesPerSample,
+  // Error classes
+  TimeoutError,
+  LostError,
+  // Channel format constants (cf_ prefix)
+  cf_float32,
+  cf_double64,
+  cf_string,
+  cf_int32,
+  cf_int16,
+  cf_int8,
+  cf_int64,
+  cf_undefined,
+  // Processing option helpers
+  proc_none,
+  proc_clocksync,
+  proc_dejitter,
+  proc_monotonize,
+  proc_threadsafe,
+  proc_all,
 } from './constants';
 
 // Utility functions from lib

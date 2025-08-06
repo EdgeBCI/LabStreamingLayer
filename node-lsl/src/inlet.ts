@@ -31,7 +31,7 @@ import {
   lsl_get_fullinfo
 } from './lib';
 import { StreamInfo } from './streaminfo';
-import { ChannelFormat, ProcessingOptions, ErrorCode, FOREVER } from './constants';
+import { ChannelFormat, ProcessingOptions, ErrorCode, FOREVER, TimeoutError, LostError } from './constants';
 
 /**
  * Result of pull operations
@@ -175,9 +175,15 @@ export class StreamInlet extends EventEmitter {
         break;
       }
       case ChannelFormat.String: {
-        const buffer = createCharArray(this.channelCount); // String arrays need special handling in koffi
-        timestamp = lsl_pull_sample_str(this.handle, buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer).map(String);
+        // For string channels, we need to create a buffer of string pointers
+        const stringBuffer = koffi.alloc('str', this.channelCount);
+        timestamp = lsl_pull_sample_str(this.handle, stringBuffer, this.channelCount, timeout, errorCode);
+        const stringSample: string[] = [];
+        for (let i = 0; i < this.channelCount; i++) {
+          const str = String(koffi.decode(stringBuffer, 'str', i) || '');
+          stringSample.push(str);
+        }
+        sample = stringSample;
         break;
       }
       default:
@@ -187,6 +193,9 @@ export class StreamInlet extends EventEmitter {
     const error = koffi.decode(errorCode, 'int32', 0);
     if (error === ErrorCode.TimeoutError || timestamp === 0.0) {
       return { sample: null, timestamp: 0 };
+    }
+    if (error === ErrorCode.LostError) {
+      throw new LostError('Stream was lost during pull operation');
     }
     if (error < 0) {
       throw new Error(`Pull sample error: ${error}`);
@@ -280,17 +289,23 @@ export class StreamInlet extends EventEmitter {
         break;
       }
       case ChannelFormat.String: {
-        const dataBuffer = createCharArray(bufferLength); // String arrays need special handling in koffi
+        // For string channels, allocate buffer for string pointers
+        const stringBuffer = koffi.alloc('str', bufferLength);
         samplesRetrieved = lsl_pull_chunk_str(
           this.handle,
-          dataBuffer,
+          stringBuffer,
           timestampBuffer,
           bufferLength,
           maxSamples,
           timeout,
           errorCode
         );
-        flatData = Array.from(dataBuffer).map(String);
+        const stringFlatData: string[] = [];
+        for (let i = 0; i < bufferLength; i++) {
+          const str = String(koffi.decode(stringBuffer, 'str', i) || '');
+          stringFlatData.push(str);
+        }
+        flatData = stringFlatData;
         break;
       }
       default:
@@ -298,6 +313,9 @@ export class StreamInlet extends EventEmitter {
     }
 
     const error = koffi.decode(errorCode, 'int32', 0);
+    if (error === ErrorCode.LostError) {
+      throw new LostError('Stream was lost during chunk pull operation');
+    }
     if (error < 0 && error !== ErrorCode.TimeoutError) {
       throw new Error(`Pull chunk error: ${error}`);
     }
@@ -390,6 +408,12 @@ export class StreamInlet extends EventEmitter {
     const correction = lsl_time_correction(this.handle, timeout, errorCode);
     
     const error = koffi.decode(errorCode, 'int32', 0);
+    if (error === ErrorCode.TimeoutError) {
+      throw new TimeoutError('Time correction timed out');
+    }
+    if (error === ErrorCode.LostError) {
+      throw new LostError('Stream was lost during time correction');
+    }
     if (error < 0) {
       throw new Error(`Time correction error: ${error}`);
     }
@@ -416,6 +440,12 @@ export class StreamInlet extends EventEmitter {
     );
     
     const error = koffi.decode(errorCode, 'int32', 0);
+    if (error === ErrorCode.TimeoutError) {
+      throw new TimeoutError('Extended time correction timed out');
+    }
+    if (error === ErrorCode.LostError) {
+      throw new LostError('Stream was lost during extended time correction');
+    }
     if (error < 0) {
       throw new Error(`Time correction error: ${error}`);
     }
@@ -432,6 +462,25 @@ export class StreamInlet extends EventEmitter {
    */
   samplesAvailable(): number {
     return lsl_samples_available(this.handle);
+  }
+
+  /**
+   * Flush the stream buffer
+   * Removes all samples from the buffer that are older than the given timestamp
+   */
+  flush(): void {
+    // Pull all available samples to flush the buffer
+    while (this.samplesAvailable() > 0) {
+      try {
+        this.pullSample(0.0); // Non-blocking pull
+      } catch (error) {
+        // Stop if we get a timeout (no more samples)
+        if (error instanceof TimeoutError) {
+          break;
+        }
+        throw error;
+      }
+    }
   }
 
   /**
@@ -465,6 +514,34 @@ export class StreamInlet extends EventEmitter {
     }
     
     return new StreamInfo(infoHandle);
+  }
+
+  /**
+   * Get channel count from the stream info
+   */
+  getChannelCount(): number {
+    return this.channelCount;
+  }
+
+  /**
+   * Get the channel format from the stream info
+   */
+  getChannelFormat(): ChannelFormat {
+    return this.channelFormat;
+  }
+
+  /**
+   * Get the nominal sampling rate from the stream info
+   */
+  getNominalSrate(): number {
+    return this.info.nominalSrate();
+  }
+
+  /**
+   * Get the stream info object
+   */
+  getInfo(): StreamInfo {
+    return this.info;
   }
 
   /**

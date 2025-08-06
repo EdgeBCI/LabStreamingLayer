@@ -136,3 +136,75 @@ export function getBytesPerSample(format: ChannelFormat): number {
       return 0;
   }
 }
+
+/**
+ * LSL-specific error classes
+ */
+
+/**
+ * Error thrown when an operation times out
+ */
+export class TimeoutError extends Error {
+  constructor(message?: string) {
+    super(message || 'Operation timed out');
+    this.name = 'TimeoutError';
+    Object.setPrototypeOf(this, TimeoutError.prototype);
+  }
+}
+
+/**
+ * Error thrown when a stream is lost or disconnected
+ */
+export class LostError extends Error {
+  constructor(message?: string) {
+    super(message || 'Stream lost or disconnected');
+    this.name = 'LostError';
+    Object.setPrototypeOf(this, LostError.prototype);
+  }
+}
+
+/**
+ * Channel format constants with cf_ prefix (pylsl compatibility)
+ */
+export const cf_float32 = ChannelFormat.Float32;
+export const cf_double64 = ChannelFormat.Double64;
+export const cf_string = ChannelFormat.String;
+export const cf_int32 = ChannelFormat.Int32;
+export const cf_int16 = ChannelFormat.Int16;
+export const cf_int8 = ChannelFormat.Int8;
+export const cf_int64 = ChannelFormat.Int64;
+export const cf_undefined = ChannelFormat.Undefined;
+
+/**
+ * Processing options helper functions (pylsl compatibility)
+ */
+
+/** No post-processing */
+export function proc_none(): ProcessingOptions {
+  return ProcessingOptions.None;
+}
+
+/** Clock synchronization */
+export function proc_clocksync(): ProcessingOptions {
+  return ProcessingOptions.ClockSync;
+}
+
+/** Remove jitter from timestamps */
+export function proc_dejitter(): ProcessingOptions {
+  return ProcessingOptions.Dejitter;
+}
+
+/** Force timestamps to be monotonic */
+export function proc_monotonize(): ProcessingOptions {
+  return ProcessingOptions.Monotonize;
+}
+
+/** Make post-processing thread-safe */
+export function proc_threadsafe(): ProcessingOptions {
+  return ProcessingOptions.ThreadSafe;
+}
+
+/** All post-processing options */
+export function proc_all(): ProcessingOptions {
+  return ProcessingOptions.All;
+}
