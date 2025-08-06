@@ -61,7 +61,7 @@ setInterval(() => {
     // Simulate EEG signal (small amplitude with some noise)
     const signal = Math.sin(2 * Math.PI * 10 * sampleNumber / samplingRate) * 10; // 10 Hz oscillation
     const noise = (Math.random() - 0.5) * 5; // Random noise
-    sample.push(signal + noise);
+    sample.push(1.555559);
   }
   
   // Send sample with current LSL timestamp
