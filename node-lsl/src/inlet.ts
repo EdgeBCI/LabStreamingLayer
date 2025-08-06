@@ -1,461 +1,397 @@
-import { EventEmitter } from 'events';
 import * as koffi from 'koffi';
-import { 
-  createDoubleArray,
+import {
+  InletHandle,
   lsl_create_inlet,
   lsl_destroy_inlet,
+  lsl_get_fullinfo,
+  lsl_get_info_from_inlet,
   lsl_open_stream,
   lsl_close_stream,
-  lsl_set_postprocessing,
   lsl_time_correction,
-  lsl_time_correction_ex,
+  lsl_set_postprocessing,
+  lsl_pull_sample_f,
+  lsl_pull_sample_d,
+  lsl_pull_sample_i,
+  lsl_pull_sample_s,
+  lsl_pull_sample_c,
+  lsl_pull_sample_str,
+  lsl_pull_sample_l,
+  lsl_pull_chunk_f,
+  lsl_pull_chunk_d,
+  lsl_pull_chunk_i,
+  lsl_pull_chunk_s,
+  lsl_pull_chunk_c,
+  lsl_pull_chunk_str,
+  lsl_pull_chunk_l,
   lsl_samples_available,
   lsl_was_clock_reset,
   lsl_smoothing_halftime,
-  lsl_get_fullinfo,
-  fmt2PullSample,
-  fmt2PullChunk,
-  fmt2ArrayCreator
+  lsl_destroy_string,
 } from './lib';
-import { StreamInfo } from './streaminfo';
-import { ChannelFormat, ProcessingOptions, ErrorCode, FOREVER, TimeoutError, LostError } from './util';
+import { StreamInfo } from './info';
+import { handleError, FOREVER } from './util';
 
 /**
- * Result of pull operations
+ * A stream inlet.
+ * Inlets are used to receive streaming data (and meta-data) from the lab network.
  */
-export interface PullResult<T> {
-  sample: T | null;
-  timestamp: number;
-}
-
-export interface ChunkResult<T> {
-  samples: T[];
-  timestamps: number[];
-}
-
-/**
- * StreamInlet represents a stream inlet for receiving data
- */
-export class StreamInlet extends EventEmitter {
-  private handle: any; // koffi pointer
-  private info: StreamInfo;
+export class StreamInlet {
+  private handle: any;
+  private destroyed: boolean = false;
+  private channelFormat: number;
   private channelCount: number;
-  private channelFormat: ChannelFormat;
-  private streamingInterval?: NodeJS.Timeout;
-  // Pre-computed function selections for efficient runtime calls
-  private doPullSample: any;
-  private doPullChunk: any;
-  private arrayCreator: any;
 
   /**
-   * Create a new StreamInlet
-   * @param info StreamInfo object describing the stream
-   * @param maxBuflen Maximum buffer length in seconds (or samples if rate is irregular)
-   * @param maxChunklen Maximum chunk size for pulling chunks (0 = no limit)
-   * @param recover Whether to try to recover lost streams
+   * Construct a new stream inlet from a resolved stream description.
+   * 
+   * @param info - A resolved stream description object (as coming from one of the resolver functions).
+   * @param maxBuflen - Optionally the maximum amount of data to buffer (in seconds if there is a nominal 
+   *                    sampling rate, otherwise x100 in samples). Recording applications want to use a 
+   *                    fairly large buffer size here, while real-time applications would only buffer as 
+   *                    much as they need to perform their next calculation. (default 360)
+   * @param maxChunklen - Optionally the maximum size, in samples, at which chunks are transmitted 
+   *                      (the default corresponds to the chunk sizes used by the sender). Recording programs 
+   *                      can use a generous size here (leaving it to the network how to pack things), 
+   *                      while real-time applications may want a finer (perhaps 1-sample) granularity. 
+   *                      If left unspecified (=0), the sender determines the chunk granularity. (default 0)
+   * @param recover - Try to silently recover lost streams that are recoverable (=those that that have a 
+   *                  source_id set). In all other cases (recover is false or the stream is not recoverable) 
+   *                  functions may throw a LostError if the stream's source is lost (e.g., due to an app 
+   *                  or computer crash). (default true)
+   * @param processingFlags - Post-processing options. Use one of the post-processing flags 
+   *                          `procNone`, `procClocksync`, `procDejitter`, `procMonotonize`, 
+   *                          or `procThreadsafe`. Can also be a logical OR combination of multiple flags. 
+   *                          Use `procAll` for all flags. (default procNone).
    */
   constructor(
     info: StreamInfo,
-    maxBuflen = 360,
-    maxChunklen = 0,
-    recover = true
+    maxBuflen: number = 360,
+    maxChunklen: number = 0,
+    recover: boolean = true,
+    processingFlags: number = 0
   ) {
-    super();
-    this.info = info;
-    this.channelCount = info.channelCount();
-    this.channelFormat = info.channelFormat();
+    if (Array.isArray(info)) {
+      throw new TypeError('Description needs to be of type StreamInfo, got a list.');
+    }
 
-    const recoverFlag = recover ? 1 : 0;
-    this.handle = lsl_create_inlet(info.getHandle(), maxBuflen, maxChunklen, recoverFlag);
-
+    this.handle = lsl_create_inlet(info.getHandle(), maxBuflen, maxChunklen, recover ? 1 : 0);
+    
     if (!this.handle) {
-      throw new Error('Failed to create stream inlet');
+      throw new Error('Could not create stream inlet.');
     }
 
-    // Pre-compute function selections based on channel format (like pylsl)
-    this.doPullSample = fmt2PullSample[this.channelFormat];
-    this.doPullChunk = fmt2PullChunk[this.channelFormat];
-    this.arrayCreator = fmt2ArrayCreator[this.channelFormat];
-
-    if (!this.doPullSample) {
-      throw new Error(`Unsupported channel format: ${this.channelFormat}`);
+    if (processingFlags > 0) {
+      handleError(lsl_set_postprocessing(this.handle, processingFlags));
     }
 
-    // Set up finalizer for automatic cleanup
-    if (typeof FinalizationRegistry !== 'undefined') {
-      const registry = new FinalizationRegistry((handle: any) => {
-        try {
-          lsl_destroy_inlet(handle);
-        } catch (e) {
-          // Ignore errors during cleanup
-        }
-      });
-      registry.register(this, this.handle);
-    }
+    this.channelFormat = info.getChannelFormat();
+    this.channelCount = info.getChannelCount();
   }
 
   /**
-   * Destroy the inlet explicitly
+   * Destructor. The inlet will automatically disconnect if destroyed.
    */
   destroy(): void {
-    this.stopStreaming();
-    if (this.handle) {
-      lsl_destroy_inlet(this.handle);
+    if (!this.destroyed && this.handle) {
+      try {
+        lsl_destroy_inlet(this.handle);
+        this.destroyed = true;
+      } catch (e) {
+        // Silently ignore errors during destruction
+      }
     }
   }
 
   /**
-   * Open the stream for receiving data
-   * @param timeout Timeout in seconds
+   * Retrieve the complete information of the given stream.
+   * This includes the extended description. Can be invoked at any time of the stream's lifetime.
+   * 
+   * @param timeout - Timeout of the operation. (default FOREVER)
+   * @returns The stream information of the inlet.
+   * @throws TimeoutError if the timeout expires, or LostError if the stream source has been lost.
    */
-  openStream(timeout = FOREVER): void {
-    const errorCode = koffi.alloc('int32', 1);
-    lsl_open_stream(this.handle, timeout, errorCode);
-    
-    const error = koffi.decode(errorCode, 'int32', 0); // koffi decode
-    if (error < 0) {
-      throw new Error(`Failed to open stream: error code ${error}`);
-    }
+  info(timeout: number = FOREVER): StreamInfo {
+    const errcode = koffi.alloc('int');
+    const result = lsl_get_fullinfo(this.handle, timeout, errcode);
+    handleError(koffi.decode(errcode, 'int'));
+    return new StreamInfo('', '', 0, 0, 0, '', result);
   }
 
   /**
-   * Close the stream
+   * Subscribe to the data stream.
+   * All samples pushed in at the other end from this moment onwards will be queued and 
+   * eventually be delivered in response to pullSample() or pullChunk() calls. 
+   * Pulling a sample without some preceding openStream is permitted (the stream will then be opened implicitly).
+   * 
+   * @param timeout - Optional timeout of the operation (default FOREVER).
+   * @throws TimeoutError if the timeout expires, or LostError if the stream source has been lost.
+   */
+  openStream(timeout: number = FOREVER): void {
+    const errcode = koffi.alloc('int');
+    lsl_open_stream(this.handle, timeout, errcode);
+    handleError(koffi.decode(errcode, 'int'));
+  }
+
+  /**
+   * Drop the current data stream.
+   * All samples that are still buffered or in flight will be dropped and transmission 
+   * and buffering of data for this inlet will be stopped. If an application stops being 
+   * interested in data from a source (temporarily or not) but keeps the outlet alive, 
+   * it should call closeStream() to not waste unnecessary system and network resources.
    */
   closeStream(): void {
     lsl_close_stream(this.handle);
   }
 
   /**
-   * Set post-processing options
-   * @param flags Processing options flags
+   * Retrieve an estimated time correction offset for the given stream.
+   * The first call to this function takes several milliseconds until a reliable first 
+   * estimate is obtained. Subsequent calls are instantaneous (and rely on periodic 
+   * background updates). The precision of these estimates should be below 1 ms 
+   * (empirically within +/-0.2 ms).
+   * 
+   * @param timeout - Timeout to acquire the first time-correction estimate (default FOREVER).
+   * @returns The current time correction estimate. This is the number that needs to be 
+   *          added to a time stamp that was remotely generated via localClock() to map 
+   *          it into the local clock domain of this machine.
+   * @throws TimeoutError if the timeout expires, or LostError if the stream source has been lost.
    */
-  setPostprocessing(flags: ProcessingOptions): void {
-    lsl_set_postprocessing(this.handle, flags);
+  timeCorrection(timeout: number = FOREVER): number {
+    const errcode = koffi.alloc('int');
+    const result = lsl_time_correction(this.handle, timeout, errcode);
+    handleError(koffi.decode(errcode, 'int'));
+    return result;
   }
 
   /**
-   * Pull a single sample
-   * @param timeout Timeout in seconds (0 = non-blocking)
-   * @returns Sample data and timestamp, or null if no sample available
+   * Pull a sample from the inlet and return it.
+   * 
+   * @param timeout - The timeout for this operation, if any. (default FOREVER)
+   *                  If this is passed as 0.0, then the function returns only a sample 
+   *                  if one is buffered for immediate pickup.
+   * @returns A tuple [sample, timestamp] where sample is an array of channel values and 
+   *          timestamp is the capture time of the sample on the remote machine, 
+   *          or [null, null] if no new sample was available. To remap this time stamp 
+   *          to the local clock, add the value returned by timeCorrection() to it.
+   * @throws LostError if the stream source has been lost.
    */
-  pullSample(timeout = 0.0): PullResult<number[] | string[]> {
-    const errorCode = koffi.alloc('int32', 1);
+  pullSample(timeout: number = FOREVER): [any[] | null, number | null] {
+    const errcode = koffi.alloc('int');
     let timestamp: number;
-    let sample: number[] | string[];
+    let sample: any[];
 
-    if (this.channelFormat === ChannelFormat.String) {
-      // Special handling for string channels
-      const stringBuffer = koffi.alloc('str', this.channelCount);
-      timestamp = this.doPullSample(this.handle, stringBuffer, this.channelCount, timeout, errorCode);
-      const stringSample: string[] = [];
-      for (let i = 0; i < this.channelCount; i++) {
-        const str = String(koffi.decode(stringBuffer, 'str', i) || '');
-        stringSample.push(str);
-      }
-      sample = stringSample;
-    } else {
-      // Numeric channels - use pre-computed array creator and function
-      const buffer = this.arrayCreator(this.channelCount);
-      timestamp = this.doPullSample(this.handle, buffer, this.channelCount, timeout, errorCode);
-      sample = Array.from(buffer) as number[];
-    }
-
-    const error = koffi.decode(errorCode, 'int32', 0);
-    if (error === ErrorCode.TimeoutError || timestamp === 0.0) {
-      return { sample: null, timestamp: 0 };
-    }
-    if (error === ErrorCode.LostError) {
-      throw new LostError('Stream was lost during pull operation');
-    }
-    if (error < 0) {
-      throw new Error(`Pull sample error: ${error}`);
-    }
-
-    return { sample, timestamp };
-  }
-
-  /**
-   * Pull a chunk of samples
-   * @param maxSamples Maximum number of samples to pull
-   * @param timeout Timeout in seconds (0 = non-blocking)
-   * @returns Array of samples and timestamps
-   */
-  pullChunk(maxSamples = 1024, timeout = 0.0): ChunkResult<number[] | string[]> {
-    const errorCode = koffi.alloc('int32', 1);
-    const timestampBuffer = createDoubleArray(maxSamples);
-    const bufferLength = maxSamples * this.channelCount;
-    let samplesRetrieved: number;
-    let flatData: number[] | string[];
-
-    if (this.channelFormat === ChannelFormat.String) {
-      // Special handling for string channels
-      const stringBuffer = koffi.alloc('str', bufferLength);
-      samplesRetrieved = this.doPullChunk(
-        this.handle,
-        stringBuffer,
-        timestampBuffer,
-        bufferLength,
-        maxSamples,
-        timeout,
-        errorCode
-      );
-      const stringFlatData: string[] = [];
-      for (let i = 0; i < bufferLength; i++) {
-        const str = String(koffi.decode(stringBuffer, 'str', i) || '');
-        stringFlatData.push(str);
-      }
-      flatData = stringFlatData;
-    } else {
-      // Numeric channels - use pre-computed array creator and function
-      const dataBuffer = this.arrayCreator(bufferLength);
-      samplesRetrieved = this.doPullChunk(
-        this.handle,
-        dataBuffer,
-        timestampBuffer,
-        bufferLength,
-        maxSamples,
-        timeout,
-        errorCode
-      );
-      flatData = Array.from(dataBuffer) as number[];
-    }
-
-    const error = koffi.decode(errorCode, 'int32', 0);
-    if (error === ErrorCode.LostError) {
-      throw new LostError('Stream was lost during chunk pull operation');
-    }
-    if (error < 0 && error !== ErrorCode.TimeoutError) {
-      throw new Error(`Pull chunk error: ${error}`);
-    }
-
-    // Convert flat data to 2D array [sample][channel]
-    const samples: (number[] | string[])[] = [];
-    const timestamps: number[] = [];
-    
-    for (let s = 0; s < samplesRetrieved; s++) {
-      if (this.channelFormat === ChannelFormat.String) {
-        const sample: string[] = [];
-        for (let c = 0; c < this.channelCount; c++) {
-          sample.push(String((flatData as string[])[s * this.channelCount + c]));
+    switch (this.channelFormat) {
+      case 1: // cfFloat32
+        const floatBuffer = new Float32Array(this.channelCount);
+        timestamp = lsl_pull_sample_f(this.handle, floatBuffer, this.channelCount, timeout, errcode);
+        sample = Array.from(floatBuffer);
+        break;
+      case 2: // cfDouble64
+        const doubleBuffer = new Float64Array(this.channelCount);
+        timestamp = lsl_pull_sample_d(this.handle, doubleBuffer, this.channelCount, timeout, errcode);
+        sample = Array.from(doubleBuffer);
+        break;
+      case 3: // cfString
+        const stringPtrs = koffi.alloc('char*', this.channelCount);
+        timestamp = lsl_pull_sample_str(this.handle, stringPtrs, this.channelCount, timeout, errcode);
+        sample = [];
+        for (let i = 0; i < this.channelCount; i++) {
+          const ptr = koffi.decode(stringPtrs, 'char**')[i];
+          sample.push(ptr ? koffi.decode(ptr, 'char*') : '');
+          if (ptr) {
+            lsl_destroy_string(ptr);
+          }
         }
-        samples.push(sample);
-      } else {
-        const sample: number[] = [];
-        for (let c = 0; c < this.channelCount; c++) {
-          sample.push((flatData as number[])[s * this.channelCount + c]);
+        break;
+      case 4: // cfInt32
+        const int32Buffer = new Int32Array(this.channelCount);
+        timestamp = lsl_pull_sample_i(this.handle, int32Buffer, this.channelCount, timeout, errcode);
+        sample = Array.from(int32Buffer);
+        break;
+      case 5: // cfInt16
+        const int16Buffer = new Int16Array(this.channelCount);
+        timestamp = lsl_pull_sample_s(this.handle, int16Buffer, this.channelCount, timeout, errcode);
+        sample = Array.from(int16Buffer);
+        break;
+      case 6: // cfInt8
+        const int8Buffer = new Int8Array(this.channelCount);
+        timestamp = lsl_pull_sample_c(this.handle, int8Buffer, this.channelCount, timeout, errcode);
+        sample = Array.from(int8Buffer);
+        break;
+      case 7: // cfInt64
+        const int64Buffer = new BigInt64Array(this.channelCount);
+        timestamp = lsl_pull_sample_l(this.handle, int64Buffer, this.channelCount, timeout, errcode);
+        sample = Array.from(int64Buffer).map(v => Number(v));
+        break;
+      default:
+        throw new Error(`Unsupported channel format: ${this.channelFormat}`);
+    }
+
+    const error = koffi.decode(errcode, 'int');
+    if (error === -1) {
+      // Timeout occurred, no sample available
+      return [null, null];
+    }
+    handleError(error);
+
+    return [sample, timestamp];
+  }
+
+  /**
+   * Pull a chunk of samples from the inlet.
+   * 
+   * @param timeout - The timeout for this operation (default 0.0).
+   *                  If passed as 0.0, only samples available for immediate pickup will be returned.
+   * @param maxSamples - Maximum number of samples to return (default 1024).
+   * @returns A tuple [samples, timestamps] where samples is a 2D array of channel values 
+   *          (each row is a sample) and timestamps is an array of capture times.
+   *          Returns [[], []] if no samples are available.
+   * @throws LostError if the stream source has been lost.
+   */
+  pullChunk(timeout: number = 0.0, maxSamples: number = 1024): [any[][], number[]] {
+    const errcode = koffi.alloc('int');
+    const dataBufferElements = maxSamples * this.channelCount;
+    const timestampBuffer = new Float64Array(maxSamples);
+    let samplesReceived: number;
+    let flatData: any[];
+
+    switch (this.channelFormat) {
+      case 1: // cfFloat32
+        const floatBuffer = new Float32Array(dataBufferElements);
+        samplesReceived = Number(lsl_pull_chunk_f(
+          this.handle, floatBuffer, timestampBuffer,
+          dataBufferElements, maxSamples, timeout, errcode
+        ));
+        flatData = Array.from(floatBuffer.slice(0, samplesReceived * this.channelCount));
+        break;
+      case 2: // cfDouble64
+        const doubleBuffer = new Float64Array(dataBufferElements);
+        samplesReceived = Number(lsl_pull_chunk_d(
+          this.handle, doubleBuffer, timestampBuffer,
+          dataBufferElements, maxSamples, timeout, errcode
+        ));
+        flatData = Array.from(doubleBuffer.slice(0, samplesReceived * this.channelCount));
+        break;
+      case 3: // cfString
+        const stringPtrs = koffi.alloc('char*', dataBufferElements);
+        samplesReceived = Number(lsl_pull_chunk_str(
+          this.handle, stringPtrs, timestampBuffer,
+          dataBufferElements, maxSamples, timeout, errcode
+        ));
+        flatData = [];
+        const ptrsArray = koffi.decode(stringPtrs, 'char**');
+        for (let i = 0; i < samplesReceived * this.channelCount; i++) {
+          const ptr = ptrsArray[i];
+          flatData.push(ptr ? koffi.decode(ptr, 'char*') : '');
+          if (ptr) {
+            lsl_destroy_string(ptr);
+          }
         }
-        samples.push(sample);
+        break;
+      case 4: // cfInt32
+        const int32Buffer = new Int32Array(dataBufferElements);
+        samplesReceived = Number(lsl_pull_chunk_i(
+          this.handle, int32Buffer, timestampBuffer,
+          dataBufferElements, maxSamples, timeout, errcode
+        ));
+        flatData = Array.from(int32Buffer.slice(0, samplesReceived * this.channelCount));
+        break;
+      case 5: // cfInt16
+        const int16Buffer = new Int16Array(dataBufferElements);
+        samplesReceived = Number(lsl_pull_chunk_s(
+          this.handle, int16Buffer, timestampBuffer,
+          dataBufferElements, maxSamples, timeout, errcode
+        ));
+        flatData = Array.from(int16Buffer.slice(0, samplesReceived * this.channelCount));
+        break;
+      case 6: // cfInt8
+        const int8Buffer = new Int8Array(dataBufferElements);
+        samplesReceived = Number(lsl_pull_chunk_c(
+          this.handle, int8Buffer, timestampBuffer,
+          dataBufferElements, maxSamples, timeout, errcode
+        ));
+        flatData = Array.from(int8Buffer.slice(0, samplesReceived * this.channelCount));
+        break;
+      case 7: // cfInt64
+        const int64Buffer = new BigInt64Array(dataBufferElements);
+        samplesReceived = Number(lsl_pull_chunk_l(
+          this.handle, int64Buffer, timestampBuffer,
+          dataBufferElements, maxSamples, timeout, errcode
+        ));
+        flatData = Array.from(int64Buffer.slice(0, samplesReceived * this.channelCount))
+          .map(v => Number(v));
+        break;
+      default:
+        throw new Error(`Unsupported channel format: ${this.channelFormat}`);
+    }
+
+    const error = koffi.decode(errcode, 'int');
+    if (error === -1) {
+      // Timeout occurred, no samples available
+      return [[], []];
+    }
+    handleError(error);
+
+    // Convert flat data to 2D array
+    const samples: any[][] = [];
+    for (let i = 0; i < samplesReceived; i++) {
+      const sample: any[] = [];
+      for (let j = 0; j < this.channelCount; j++) {
+        sample.push(flatData[i * this.channelCount + j]);
       }
-      timestamps.push(timestampBuffer[s]);
+      samples.push(sample);
     }
 
-    return { samples, timestamps };
+    const timestamps = Array.from(timestampBuffer.slice(0, samplesReceived));
+    return [samples, timestamps];
   }
 
   /**
-   * Start streaming chunks at regular intervals
-   * @param chunkSize Number of samples per chunk
-   * @param interval Interval in milliseconds
-   * @param maxSamples Maximum samples per pull
-   */
-  startStreaming(chunkSize = 12, interval?: number, maxSamples = chunkSize * 2): void {
-    if (this.streamingInterval) {
-      this.stopStreaming();
-    }
-
-    // Calculate interval based on sampling rate if not provided
-    if (!interval) {
-      const srate = this.info.nominalSrate();
-      if (srate > 0) {
-        interval = (1000 / srate) * chunkSize;
-      } else {
-        interval = 100; // Default 100ms for irregular rate
-      }
-    }
-
-    this.streamingInterval = setInterval(() => {
-      try {
-        const result = this.pullChunk(maxSamples, 0.0);
-        if (result.samples.length > 0) {
-          this.emit('chunk', result);
-        }
-      } catch (error) {
-        this.emit('error', error);
-        this.stopStreaming();
-      }
-    }, interval);
-
-    this.emit('streaming', true);
-  }
-
-  /**
-   * Stop streaming
-   */
-  stopStreaming(): void {
-    if (this.streamingInterval) {
-      clearInterval(this.streamingInterval);
-      this.streamingInterval = undefined;
-      this.emit('streaming', false);
-    }
-  }
-
-  /**
-   * Check if currently streaming
-   */
-  isStreaming(): boolean {
-    return this.streamingInterval !== undefined;
-  }
-
-  /**
-   * Get time correction value
-   * @param timeout Timeout in seconds
-   * @returns Time correction offset
-   */
-  timeCorrection(timeout = FOREVER): number {
-    const errorCode = koffi.alloc('int32', 1);
-    const correction = lsl_time_correction(this.handle, timeout, errorCode);
-    
-    const error = koffi.decode(errorCode, 'int32', 0);
-    if (error === ErrorCode.TimeoutError) {
-      throw new TimeoutError('Time correction timed out');
-    }
-    if (error === ErrorCode.LostError) {
-      throw new LostError('Stream was lost during time correction');
-    }
-    if (error < 0) {
-      throw new Error(`Time correction error: ${error}`);
-    }
-    
-    return correction;
-  }
-
-  /**
-   * Get extended time correction information
-   * @param timeout Timeout in seconds
-   * @returns Object with correction, remote time, and uncertainty
-   */
-  timeCorrectionEx(timeout = FOREVER): { correction: number; remoteTime: number; uncertainty: number } {
-    const errorCode = koffi.alloc('int32', 1);
-    const remoteTime = koffi.alloc('double', 1);
-    const uncertainty = koffi.alloc('double', 1);
-    
-    const correction = lsl_time_correction_ex(
-      this.handle,
-      remoteTime,
-      uncertainty,
-      timeout,
-      errorCode
-    );
-    
-    const error = koffi.decode(errorCode, 'int32', 0);
-    if (error === ErrorCode.TimeoutError) {
-      throw new TimeoutError('Extended time correction timed out');
-    }
-    if (error === ErrorCode.LostError) {
-      throw new LostError('Stream was lost during extended time correction');
-    }
-    if (error < 0) {
-      throw new Error(`Time correction error: ${error}`);
-    }
-    
-    return {
-      correction,
-      remoteTime: koffi.decode(remoteTime, 'double', 0),
-      uncertainty: koffi.decode(uncertainty, 'double', 0),
-    };
-  }
-
-  /**
-   * Get the number of samples available
+   * Query whether samples are currently available for immediate pickup.
+   * 
+   * @returns The number of samples available for immediate pickup.
    */
   samplesAvailable(): number {
     return lsl_samples_available(this.handle);
   }
 
   /**
-   * Flush the stream buffer
-   * Removes all samples from the buffer that are older than the given timestamp
-   */
-  flush(): void {
-    // Pull all available samples to flush the buffer
-    while (this.samplesAvailable() > 0) {
-      try {
-        this.pullSample(0.0); // Non-blocking pull
-      } catch (error) {
-        // Stop if we get a timeout (no more samples)
-        if (error instanceof TimeoutError) {
-          break;
-        }
-        throw error;
-      }
-    }
-  }
-
-  /**
-   * Check if the clock was reset
+   * Query whether the clock was potentially reset since the last call to wasClockReset().
+   * This is a rarely-used function that is only needed for applications that combine 
+   * multiple time_correction values to estimate precise clock drift; it allows to 
+   * tolerate cases where the source machine was hot-swapped or restarted in between 
+   * two measurements.
+   * 
+   * @returns True if the clock was potentially reset, false otherwise.
    */
   wasClockReset(): boolean {
     return lsl_was_clock_reset(this.handle) !== 0;
   }
 
   /**
-   * Set the smoothing halftime
-   * @param halftime Smoothing halftime in seconds
-   * @returns Previous halftime value
+   * Override the half-time (forget factor) of the time-stamp smoothing.
+   * The default is 90 seconds unless a different value is set in the config file.
+   * Using a longer window will yield lower jitter in the time stamps, but 
+   * longer windows will have trouble tracking changes in the clock rate 
+   * (usually due to temperature changes); the default is able to track 
+   * changes of up to 10 miliseconds per minute.
+   * 
+   * @param value - The new half-time in seconds. The default is 90 seconds.
+   * @returns The previous value.
    */
-  smoothingHalftime(halftime?: number): number {
-    return lsl_smoothing_halftime(this.handle, halftime || -1);
+  smoothingHalftime(value: number): number {
+    return lsl_smoothing_halftime(this.handle, value);
   }
 
   /**
-   * Get full stream info
-   * @param timeout Timeout in seconds
-   * @returns Updated StreamInfo
+   * Drop all queued samples and replace them with a single new sample.
+   * This is useful for streams that have irregular sampling rates and where 
+   * only the most recent sample is of interest.
    */
-  getFullInfo(timeout = FOREVER): StreamInfo {
-    const errorCode = koffi.alloc('int32', 1);
-    const infoHandle = lsl_get_fullinfo(this.handle, timeout, errorCode);
-    
-    const error = koffi.decode(errorCode, 'int32', 0);
-    if (error < 0) {
-      throw new Error(`Get full info error: ${error}`);
+  flush(): void {
+    // Pull all available samples to clear the buffer
+    while (this.samplesAvailable() > 0) {
+      this.pullSample(0.0);
     }
-    
-    return new StreamInfo(infoHandle);
-  }
-
-  /**
-   * Get channel count from the stream info
-   */
-  getChannelCount(): number {
-    return this.channelCount;
-  }
-
-  /**
-   * Get the channel format from the stream info
-   */
-  getChannelFormat(): ChannelFormat {
-    return this.channelFormat;
-  }
-
-  /**
-   * Get the nominal sampling rate from the stream info
-   */
-  getNominalSrate(): number {
-    return this.info.nominalSrate();
-  }
-
-  /**
-   * Get the stream info object
-   */
-  getInfo(): StreamInfo {
-    return this.info;
-  }
-
-  /**
-   * Get the internal handle
-   */
-  getHandle(): any {
-    return this.handle;
   }
 }

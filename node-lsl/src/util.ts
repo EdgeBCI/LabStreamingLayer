@@ -1,210 +1,110 @@
-/**
- * Constants and enums for Lab Streaming Layer
- */
+import { lsl_protocol_version, lsl_library_version, lsl_library_info, lsl_local_clock } from './lib';
 
-/**
- * Data format of a channel
- */
-export enum ChannelFormat {
-  /** 32-bit float (single precision) */
-  Float32 = 1,
-  /** 64-bit float (double precision) */
-  Double64 = 2,
-  /** String (variable length) */
-  String = 3,
-  /** 32-bit signed integer */
-  Int32 = 4,
-  /** 16-bit signed integer */
-  Int16 = 5,
-  /** 8-bit signed integer */
-  Int8 = 6,
-  /** 64-bit signed integer */
-  Int64 = 7,
-  /** Undefined format (placeholder) */
-  Undefined = 0,
-}
-
-/**
- * Post-processing flags for inlet
- */
-export enum ProcessingOptions {
-  /** No automatic post-processing */
-  None = 0,
-  /** Perform clock synchronization */
-  ClockSync = 1,
-  /** Remove jitter from timestamps */
-  Dejitter = 2,
-  /** Force timestamps to be monotonically ascending */
-  Monotonize = 4,
-  /** Post-processing is thread-safe */
-  ThreadSafe = 8,
-  /** All post-processing options */
-  All = 1 | 2 | 4 | 8,
-}
-
-/**
- * Error codes
- */
-export enum ErrorCode {
-  /** No error */
-  NoError = 0,
-  /** Timeout expired */
-  TimeoutError = -1,
-  /** Stream lost */
-  LostError = -2,
-  /** Invalid argument */
-  ArgumentError = -3,
-  /** Internal error */
-  InternalError = -4,
-}
-
-/**
- * Special constants
- */
+// Constants matching pylsl
 export const IRREGULAR_RATE = 0.0;
+export const DEDUCED_TIMESTAMP = -1.0;
 export const FOREVER = 32000000.0;
-export const NO_PREFERENCE = 0;
-export const ALL = -1;
 
-/**
- * Channel format names
- */
-export const CHANNEL_FORMAT_STRINGS: { [key: number]: string } = {
-  [ChannelFormat.Float32]: 'float32',
-  [ChannelFormat.Double64]: 'double64',
-  [ChannelFormat.String]: 'string',
-  [ChannelFormat.Int32]: 'int32',
-  [ChannelFormat.Int16]: 'int16',
-  [ChannelFormat.Int8]: 'int8',
-  [ChannelFormat.Int64]: 'int64',
-  [ChannelFormat.Undefined]: 'undefined',
+// Processing flags for stream inlets (camelCase naming)
+export const procNone = 0;  // No automatic post-processing
+export const procClocksync = 1;  // Perform automatic clock synchronization
+export const procDejitter = 2;  // Remove jitter from time stamps
+export const procMonotonize = 4;  // Force time-stamps to be monotonically ascending
+export const procThreadsafe = 8;  // Post-processing is thread-safe
+export const procAll = procNone | procClocksync | procDejitter | procMonotonize | procThreadsafe;
+
+// Channel format constants (camelCase naming)
+export const cfFloat32 = 1;
+export const cfDouble64 = 2;
+export const cfString = 3;
+export const cfInt32 = 4;
+export const cfInt16 = 5;
+export const cfInt8 = 6;
+export const cfInt64 = 7;
+export const cfUndefined = 0;
+
+// String to format mapping
+export const string2fmt: { [key: string]: number } = {
+  'float32': cfFloat32,
+  'double64': cfDouble64,
+  'string': cfString,
+  'int32': cfInt32,
+  'int16': cfInt16,
+  'int8': cfInt8,
+  'int64': cfInt64,
 };
 
-/**
- * Protocol version
- */
-export const LSL_PROTOCOL_VERSION = 110;
+// Format to string mapping
+export const fmt2string: string[] = [
+  'undefined',
+  'float32',
+  'double64',
+  'string',
+  'int32',
+  'int16',
+  'int8',
+  'int64',
+];
 
-/**
- * Get the string representation of a channel format
- */
-export function channelFormatToString(format: ChannelFormat): string {
-  return CHANNEL_FORMAT_STRINGS[format] || 'unknown';
-}
-
-/**
- * Get the channel format from a string
- */
-export function stringToChannelFormat(str: string): ChannelFormat {
-  const lowerStr = str.toLowerCase();
-  for (const [key, value] of Object.entries(CHANNEL_FORMAT_STRINGS)) {
-    if (value === lowerStr) {
-      return parseInt(key) as ChannelFormat;
-    }
-  }
-  // Also handle cf_ prefix variants
-  if (lowerStr === 'cf_float32') return ChannelFormat.Float32;
-  if (lowerStr === 'cf_double64') return ChannelFormat.Double64;
-  if (lowerStr === 'cf_string') return ChannelFormat.String;
-  if (lowerStr === 'cf_int32') return ChannelFormat.Int32;
-  if (lowerStr === 'cf_int16') return ChannelFormat.Int16;
-  if (lowerStr === 'cf_int8') return ChannelFormat.Int8;
-  if (lowerStr === 'cf_int64') return ChannelFormat.Int64;
-  return ChannelFormat.Undefined;
-}
-
-/**
- * Get bytes per sample for a channel format
- */
-export function getBytesPerSample(format: ChannelFormat): number {
-  switch (format) {
-    case ChannelFormat.Float32:
-      return 4;
-    case ChannelFormat.Double64:
-      return 8;
-    case ChannelFormat.Int8:
-      return 1;
-    case ChannelFormat.Int16:
-      return 2;
-    case ChannelFormat.Int32:
-      return 4;
-    case ChannelFormat.Int64:
-      return 8;
-    case ChannelFormat.String:
-      return -1; // Variable length
-    default:
-      return 0;
-  }
-}
-
-/**
- * LSL-specific error classes
- */
-
-/**
- * Error thrown when an operation times out
- */
+// Error classes matching pylsl
 export class TimeoutError extends Error {
   constructor(message?: string) {
-    super(message || 'Operation timed out');
+    super(message || 'The operation failed due to a timeout.');
     this.name = 'TimeoutError';
-    Object.setPrototypeOf(this, TimeoutError.prototype);
   }
 }
 
-/**
- * Error thrown when a stream is lost or disconnected
- */
 export class LostError extends Error {
   constructor(message?: string) {
-    super(message || 'Stream lost or disconnected');
+    super(message || 'The stream has been lost.');
     this.name = 'LostError';
-    Object.setPrototypeOf(this, LostError.prototype);
   }
 }
 
-/**
- * Channel format constants with cf_ prefix (pylsl compatibility)
- */
-export const cf_float32 = ChannelFormat.Float32;
-export const cf_double64 = ChannelFormat.Double64;
-export const cf_string = ChannelFormat.String;
-export const cf_int32 = ChannelFormat.Int32;
-export const cf_int16 = ChannelFormat.Int16;
-export const cf_int8 = ChannelFormat.Int8;
-export const cf_int64 = ChannelFormat.Int64;
-export const cf_undefined = ChannelFormat.Undefined;
-
-/**
- * Processing options helper functions (pylsl compatibility)
- */
-
-/** No post-processing */
-export function proc_none(): ProcessingOptions {
-  return ProcessingOptions.None;
+export class InvalidArgumentError extends Error {
+  constructor(message?: string) {
+    super(message || 'An argument was incorrectly specified.');
+    this.name = 'InvalidArgumentError';
+  }
 }
 
-/** Clock synchronization */
-export function proc_clocksync(): ProcessingOptions {
-  return ProcessingOptions.ClockSync;
+export class InternalError extends Error {
+  constructor(message?: string) {
+    super(message || 'An internal error has occurred.');
+    this.name = 'InternalError';
+  }
 }
 
-/** Remove jitter from timestamps */
-export function proc_dejitter(): ProcessingOptions {
-  return ProcessingOptions.Dejitter;
+// Error handler function
+export function handleError(errcode: number): void {
+  if (errcode === 0) {
+    return; // No error
+  } else if (errcode === -1) {
+    throw new TimeoutError();
+  } else if (errcode === -2) {
+    throw new LostError();
+  } else if (errcode === -3) {
+    throw new InvalidArgumentError();
+  } else if (errcode === -4) {
+    throw new InternalError();
+  } else if (errcode < 0) {
+    throw new Error('An unknown error has occurred.');
+  }
 }
 
-/** Force timestamps to be monotonic */
-export function proc_monotonize(): ProcessingOptions {
-  return ProcessingOptions.Monotonize;
+// Utility functions
+export function protocolVersion(): number {
+  return lsl_protocol_version();
 }
 
-/** Make post-processing thread-safe */
-export function proc_threadsafe(): ProcessingOptions {
-  return ProcessingOptions.ThreadSafe;
+export function libraryVersion(): number {
+  return lsl_library_version();
 }
 
-/** All post-processing options */
-export function proc_all(): ProcessingOptions {
-  return ProcessingOptions.All;
+export function libraryInfo(): string {
+  return lsl_library_info();
+}
+
+export function localClock(): number {
+  return lsl_local_clock();
 }
