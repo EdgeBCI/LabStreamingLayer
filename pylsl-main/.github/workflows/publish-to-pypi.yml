@@ -1,0 +1,58 @@
+name: Build and publish Python 🐍 distributions 📦 to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+env:
+  LSL_RELEASE_URL: "https://github.com/sccn/liblsl/releases/download/"
+  LSL_RELEASE: "1.16.2"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    permissions:
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: "ubuntu-24.04"
+            os: "ubuntu-latest"
+            pyarch: "x64"
+          - name: "windows-x64"
+            os: "windows-latest"
+            arch: "amd64"
+            pyarch: "x64"
+          - name: "windows-x86"
+            os: "windows-latest"
+            arch: "i386"
+            pyarch: "x86"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download liblsl (Windows)
+        if: matrix.config.os == 'windows-latest'
+        run: |
+          curl -L ${LSL_RELEASE_URL}/v${LSL_RELEASE}/liblsl-${LSL_RELEASE}-Win_${{ matrix.config.arch}}.zip -o liblsl.zip
+          unzip -oj liblsl.zip bin/lsl* -d src/pylsl/lib
+      - name: Set up Python 3.x
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+          architecture: ${{ matrix.config.pyarch }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+      - name: Build Package (Linux)
+        if: matrix.config.os != 'windows-latest'
+        run: uv build
+      - name: Build Package (Windows)
+        if: matrix.config.os == 'windows-latest'
+        run: uv build --wheel
+      - name: Publish package distributions to PyPI
+        run: uv publish
