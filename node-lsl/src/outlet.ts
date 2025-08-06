@@ -14,7 +14,7 @@ import {
   fmt2ArrayCreator
 } from './lib';
 import { StreamInfo } from './streaminfo';
-import { ChannelFormat, FOREVER } from './constants';
+import { ChannelFormat } from './constants';
 
 /**
  * StreamOutlet represents a stream outlet for sending data
