@@ -208,9 +208,9 @@ export class StreamOutlet {
 
   /**
    * Wait for consumers to connect
-   * @param timeout Timeout in seconds (FOREVER = wait indefinitely)
+   * @param timeout Timeout in seconds
    */
-  waitForConsumers(timeout = FOREVER): boolean {
+  waitForConsumers(timeout: number): boolean {
     return lsl_wait_for_consumers(this.handle, timeout) !== 0;
   }
 
@@ -218,8 +218,8 @@ export class StreamOutlet {
    * Get the StreamInfo for this outlet
    */
   getInfo(): StreamInfo {
-    const infoHandle = lsl_get_info(this.handle);
-    return new StreamInfo(infoHandle);
+    const outletInfo = lsl_get_info(this.handle);
+    return new StreamInfo(outletInfo);
   }
 
   /**
