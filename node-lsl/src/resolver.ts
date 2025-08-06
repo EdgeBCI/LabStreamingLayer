@@ -1,5 +1,14 @@
-import * as ref from 'ref-napi';
-import { lib, ContinuousResolverHandle, StreamInfoHandle } from './lib';
+import * as koffi from 'koffi';
+import { 
+  lsl_resolve_all,
+  lsl_resolve_byprop,
+  lsl_resolve_bypred,
+  lsl_create_continuous_resolver,
+  lsl_create_continuous_resolver_byprop,
+  lsl_create_continuous_resolver_bypred,
+  lsl_resolver_results,
+  lsl_destroy_continuous_resolver
+} from './lib';
 import { StreamInfo } from './streaminfo';
 import { FOREVER } from './constants';
 
@@ -10,15 +19,14 @@ import { FOREVER } from './constants';
  */
 export function resolveStreams(waitTime = 1.0): StreamInfo[] {
   const maxStreams = 1024;
-  const bufferSize = maxStreams * ref.sizeof.pointer;
-  const buffer = Buffer.alloc(bufferSize);
+  const buffer = koffi.alloc('void*', maxStreams);
   
-  const numStreams = lib.lsl_resolve_all(buffer, maxStreams, waitTime);
+  const numStreams = lsl_resolve_all(buffer, maxStreams, waitTime);
   
   const streams: StreamInfo[] = [];
   for (let i = 0; i < numStreams; i++) {
-    const handle = ref.readPointer(buffer, i * ref.sizeof.pointer);
-    if (!ref.isNull(handle)) {
+    const handle = koffi.decode(buffer, 'void*', i);
+    if (handle) {
       streams.push(new StreamInfo(handle));
     }
   }
@@ -41,10 +49,9 @@ export function resolveByProp(
   timeout = FOREVER
 ): StreamInfo[] {
   const maxStreams = 1024;
-  const bufferSize = maxStreams * ref.sizeof.pointer;
-  const buffer = Buffer.alloc(bufferSize);
+  const buffer = koffi.alloc('void*', maxStreams);
   
-  const numStreams = lib.lsl_resolve_byprop(
+  const numStreams = lsl_resolve_byprop(
     buffer,
     maxStreams,
     prop,
@@ -55,8 +62,8 @@ export function resolveByProp(
   
   const streams: StreamInfo[] = [];
   for (let i = 0; i < numStreams; i++) {
-    const handle = ref.readPointer(buffer, i * ref.sizeof.pointer);
-    if (!ref.isNull(handle)) {
+    const handle = koffi.decode(buffer, 'void*', i);
+    if (handle) {
       streams.push(new StreamInfo(handle));
     }
   }
@@ -77,10 +84,9 @@ export function resolveByPred(
   timeout = FOREVER
 ): StreamInfo[] {
   const maxStreams = 1024;
-  const bufferSize = maxStreams * ref.sizeof.pointer;
-  const buffer = Buffer.alloc(bufferSize);
+  const buffer = koffi.alloc('void*', maxStreams);
   
-  const numStreams = lib.lsl_resolve_bypred(
+  const numStreams = lsl_resolve_bypred(
     buffer,
     maxStreams,
     predicate,
@@ -90,8 +96,8 @@ export function resolveByPred(
   
   const streams: StreamInfo[] = [];
   for (let i = 0; i < numStreams; i++) {
-    const handle = ref.readPointer(buffer, i * ref.sizeof.pointer);
-    if (!ref.isNull(handle)) {
+    const handle = koffi.decode(buffer, 'void*', i);
+    if (handle) {
       streams.push(new StreamInfo(handle));
     }
   }
@@ -103,8 +109,7 @@ export function resolveByPred(
  * ContinuousResolver for background stream discovery
  */
 export class ContinuousResolver {
-  private handle: Buffer;
-  private forgetAfter: number;
+  private handle: any; // koffi pointer
 
   /**
    * Create a continuous resolver
@@ -119,25 +124,24 @@ export class ContinuousResolver {
     predicate?: string,
     forgetAfter = 5.0
   ) {
-    this.forgetAfter = forgetAfter;
 
     if (predicate) {
-      this.handle = lib.lsl_create_continuous_resolver_bypred(predicate, forgetAfter);
+      this.handle = lsl_create_continuous_resolver_bypred(predicate, forgetAfter);
     } else if (prop && value) {
-      this.handle = lib.lsl_create_continuous_resolver_byprop(prop, value, forgetAfter);
+      this.handle = lsl_create_continuous_resolver_byprop(prop, value, forgetAfter);
     } else {
-      this.handle = lib.lsl_create_continuous_resolver(forgetAfter);
+      this.handle = lsl_create_continuous_resolver(forgetAfter);
     }
 
-    if (ref.isNull(this.handle)) {
+    if (!this.handle) {
       throw new Error('Failed to create continuous resolver');
     }
 
     // Set up finalizer for automatic cleanup
     if (typeof FinalizationRegistry !== 'undefined') {
-      const registry = new FinalizationRegistry((handle: Buffer) => {
+      const registry = new FinalizationRegistry((handle: any) => {
         try {
-          lib.lsl_destroy_continuous_resolver(handle);
+          lsl_destroy_continuous_resolver(handle);
         } catch (e) {
           // Ignore errors during cleanup
         }
@@ -151,7 +155,7 @@ export class ContinuousResolver {
    */
   destroy(): void {
     if (this.handle) {
-      lib.lsl_destroy_continuous_resolver(this.handle);
+      lsl_destroy_continuous_resolver(this.handle);
     }
   }
 
@@ -161,15 +165,14 @@ export class ContinuousResolver {
    */
   results(): StreamInfo[] {
     const maxStreams = 1024;
-    const bufferSize = maxStreams * ref.sizeof.pointer;
-    const buffer = Buffer.alloc(bufferSize);
+    const buffer = koffi.alloc('void*', maxStreams);
     
-    const numStreams = lib.lsl_resolver_results(this.handle, buffer, maxStreams);
+    const numStreams = lsl_resolver_results(this.handle, buffer, maxStreams);
     
     const streams: StreamInfo[] = [];
     for (let i = 0; i < numStreams; i++) {
-      const handle = ref.readPointer(buffer, i * ref.sizeof.pointer);
-      if (!ref.isNull(handle)) {
+      const handle = koffi.decode(buffer, 'void*', i);
+      if (handle) {
         streams.push(new StreamInfo(handle));
       }
     }
@@ -180,7 +183,7 @@ export class ContinuousResolver {
   /**
    * Get the internal handle
    */
-  getHandle(): Buffer {
+  getHandle(): any {
     return this.handle;
   }
 }

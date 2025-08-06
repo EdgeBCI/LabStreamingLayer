@@ -1,7 +1,35 @@
-import * as ref from 'ref-napi';
-import RefArray from 'ref-array-napi';
 import { EventEmitter } from 'events';
-import { lib, StreamInletHandle, FloatArray, DoubleArray, IntArray, CharArray, StringArray } from './lib';
+import * as koffi from 'koffi';
+import { 
+  createFloatArray, 
+  createDoubleArray, 
+  createIntArray, 
+  createShortArray, 
+  createCharArray,
+  lsl_create_inlet,
+  lsl_destroy_inlet,
+  lsl_open_stream,
+  lsl_close_stream,
+  lsl_set_postprocessing,
+  lsl_pull_sample_f,
+  lsl_pull_sample_d,
+  lsl_pull_sample_i,
+  lsl_pull_sample_s,
+  lsl_pull_sample_c,
+  lsl_pull_sample_str,
+  lsl_pull_chunk_f,
+  lsl_pull_chunk_d,
+  lsl_pull_chunk_i,
+  lsl_pull_chunk_s,
+  lsl_pull_chunk_c,
+  lsl_pull_chunk_str,
+  lsl_time_correction,
+  lsl_time_correction_ex,
+  lsl_samples_available,
+  lsl_was_clock_reset,
+  lsl_smoothing_halftime,
+  lsl_get_fullinfo
+} from './lib';
 import { StreamInfo } from './streaminfo';
 import { ChannelFormat, ProcessingOptions, ErrorCode, FOREVER } from './constants';
 
@@ -22,11 +50,10 @@ export interface ChunkResult<T> {
  * StreamInlet represents a stream inlet for receiving data
  */
 export class StreamInlet extends EventEmitter {
-  private handle: Buffer;
+  private handle: any; // koffi pointer
   private info: StreamInfo;
   private channelCount: number;
   private channelFormat: ChannelFormat;
-  private isOpen: boolean;
   private streamingInterval?: NodeJS.Timeout;
 
   /**
@@ -46,20 +73,19 @@ export class StreamInlet extends EventEmitter {
     this.info = info;
     this.channelCount = info.channelCount();
     this.channelFormat = info.channelFormat();
-    this.isOpen = false;
 
     const recoverFlag = recover ? 1 : 0;
-    this.handle = lib.lsl_create_inlet(info.getHandle(), maxBuflen, maxChunklen, recoverFlag);
+    this.handle = lsl_create_inlet(info.getHandle(), maxBuflen, maxChunklen, recoverFlag);
 
-    if (ref.isNull(this.handle)) {
+    if (!this.handle) {
       throw new Error('Failed to create stream inlet');
     }
 
     // Set up finalizer for automatic cleanup
     if (typeof FinalizationRegistry !== 'undefined') {
-      const registry = new FinalizationRegistry((handle: Buffer) => {
+      const registry = new FinalizationRegistry((handle: any) => {
         try {
-          lib.lsl_destroy_inlet(handle);
+          lsl_destroy_inlet(handle);
         } catch (e) {
           // Ignore errors during cleanup
         }
@@ -74,7 +100,7 @@ export class StreamInlet extends EventEmitter {
   destroy(): void {
     this.stopStreaming();
     if (this.handle) {
-      lib.lsl_destroy_inlet(this.handle);
+      lsl_destroy_inlet(this.handle);
     }
   }
 
@@ -83,22 +109,20 @@ export class StreamInlet extends EventEmitter {
    * @param timeout Timeout in seconds
    */
   openStream(timeout = FOREVER): void {
-    const errorCode = ref.alloc(ref.types.int32);
-    lib.lsl_open_stream(this.handle, timeout, errorCode);
+    const errorCode = koffi.alloc('int32', 1);
+    lsl_open_stream(this.handle, timeout, errorCode);
     
-    const error = errorCode.deref();
+    const error = koffi.decode(errorCode, 'int32', 0); // koffi decode
     if (error < 0) {
       throw new Error(`Failed to open stream: error code ${error}`);
     }
-    this.isOpen = true;
   }
 
   /**
    * Close the stream
    */
   closeStream(): void {
-    lib.lsl_close_stream(this.handle);
-    this.isOpen = false;
+    lsl_close_stream(this.handle);
   }
 
   /**
@@ -106,7 +130,7 @@ export class StreamInlet extends EventEmitter {
    * @param flags Processing options flags
    */
   setPostprocessing(flags: ProcessingOptions): void {
-    lib.lsl_set_postprocessing(this.handle, flags);
+    lsl_set_postprocessing(this.handle, flags);
   }
 
   /**
@@ -115,58 +139,52 @@ export class StreamInlet extends EventEmitter {
    * @returns Sample data and timestamp, or null if no sample available
    */
   pullSample(timeout = 0.0): PullResult<number[] | string[]> {
-    const errorCode = ref.alloc(ref.types.int32);
+    const errorCode = koffi.alloc('int32', 1);
     let timestamp: number;
     let sample: number[] | string[];
 
     switch (this.channelFormat) {
       case ChannelFormat.Float32: {
-        const FloatArrayType = RefArray(ref.types.float);
-        const buffer = new FloatArrayType(this.channelCount);
-        timestamp = lib.lsl_pull_sample_f(this.handle, buffer.buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer.toArray());
+        const buffer = createFloatArray(this.channelCount);
+        timestamp = lsl_pull_sample_f(this.handle, buffer, this.channelCount, timeout, errorCode);
+        sample = Array.from(buffer);
         break;
       }
       case ChannelFormat.Double64: {
-        const DoubleArrayType = RefArray(ref.types.double);
-        const buffer = new DoubleArrayType(this.channelCount);
-        timestamp = lib.lsl_pull_sample_d(this.handle, buffer.buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer.toArray());
+        const buffer = createDoubleArray(this.channelCount);
+        timestamp = lsl_pull_sample_d(this.handle, buffer, this.channelCount, timeout, errorCode);
+        sample = Array.from(buffer);
         break;
       }
       case ChannelFormat.Int32: {
-        const IntArrayType = RefArray(ref.types.int32);
-        const buffer = new IntArrayType(this.channelCount);
-        timestamp = lib.lsl_pull_sample_i(this.handle, buffer.buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer.toArray());
+        const buffer = createIntArray(this.channelCount);
+        timestamp = lsl_pull_sample_i(this.handle, buffer, this.channelCount, timeout, errorCode);
+        sample = Array.from(buffer);
         break;
       }
       case ChannelFormat.Int16: {
-        const ShortArrayType = RefArray(ref.types.int16);
-        const buffer = new ShortArrayType(this.channelCount);
-        timestamp = lib.lsl_pull_sample_s(this.handle, buffer.buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer.toArray());
+        const buffer = createShortArray(this.channelCount);
+        timestamp = lsl_pull_sample_s(this.handle, buffer, this.channelCount, timeout, errorCode);
+        sample = Array.from(buffer);
         break;
       }
       case ChannelFormat.Int8: {
-        const CharArrayType = RefArray(ref.types.int8);
-        const buffer = new CharArrayType(this.channelCount);
-        timestamp = lib.lsl_pull_sample_c(this.handle, buffer.buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer.toArray());
+        const buffer = createCharArray(this.channelCount);
+        timestamp = lsl_pull_sample_c(this.handle, buffer, this.channelCount, timeout, errorCode);
+        sample = Array.from(buffer);
         break;
       }
       case ChannelFormat.String: {
-        const StringArrayType = RefArray(ref.types.CString);
-        const buffer = new StringArrayType(this.channelCount);
-        timestamp = lib.lsl_pull_sample_str(this.handle, buffer.buffer, this.channelCount, timeout, errorCode);
-        sample = buffer.toArray();
+        const buffer = createCharArray(this.channelCount); // String arrays need special handling in koffi
+        timestamp = lsl_pull_sample_str(this.handle, buffer, this.channelCount, timeout, errorCode);
+        sample = Array.from(buffer).map(String);
         break;
       }
       default:
         throw new Error(`Unsupported channel format: ${this.channelFormat}`);
     }
 
-    const error = errorCode.deref();
+    const error = koffi.decode(errorCode, 'int32', 0);
     if (error === ErrorCode.TimeoutError || timestamp === 0.0) {
       return { sample: null, timestamp: 0 };
     }
@@ -184,109 +202,102 @@ export class StreamInlet extends EventEmitter {
    * @returns Array of samples and timestamps
    */
   pullChunk(maxSamples = 1024, timeout = 0.0): ChunkResult<number[] | string[]> {
-    const errorCode = ref.alloc(ref.types.int32);
-    const DoubleArrayType = RefArray(ref.types.double);
-    const timestampBuffer = new DoubleArrayType(maxSamples);
+    const errorCode = koffi.alloc('int32', 1);
+    const timestampBuffer = createDoubleArray(maxSamples);
     const bufferLength = maxSamples * this.channelCount;
     let samplesRetrieved: number;
     let flatData: number[] | string[];
 
     switch (this.channelFormat) {
       case ChannelFormat.Float32: {
-        const FloatArrayType = RefArray(ref.types.float);
-        const dataBuffer = new FloatArrayType(bufferLength);
-        samplesRetrieved = lib.lsl_pull_chunk_f(
+        const dataBuffer = createFloatArray(bufferLength);
+        samplesRetrieved = lsl_pull_chunk_f(
           this.handle,
-          dataBuffer.buffer,
-          timestampBuffer.buffer,
+          dataBuffer,
+          timestampBuffer,
           bufferLength,
           maxSamples,
           timeout,
           errorCode
         );
-        flatData = dataBuffer.toArray();
+        flatData = Array.from(dataBuffer);
         break;
       }
       case ChannelFormat.Double64: {
-        const DoubleArrayType = RefArray(ref.types.double);
-        const dataBuffer = new DoubleArrayType(bufferLength);
-        samplesRetrieved = lib.lsl_pull_chunk_d(
+        const dataBuffer = createDoubleArray(bufferLength);
+        samplesRetrieved = lsl_pull_chunk_d(
           this.handle,
-          dataBuffer.buffer,
-          timestampBuffer.buffer,
+          dataBuffer,
+          timestampBuffer,
           bufferLength,
           maxSamples,
           timeout,
           errorCode
         );
-        flatData = dataBuffer.toArray();
+        flatData = Array.from(dataBuffer);
         break;
       }
       case ChannelFormat.Int32: {
-        const IntArrayType = RefArray(ref.types.int32);
-        const dataBuffer = new IntArrayType(bufferLength);
-        samplesRetrieved = lib.lsl_pull_chunk_i(
+        const dataBuffer = createIntArray(bufferLength);
+        samplesRetrieved = lsl_pull_chunk_i(
           this.handle,
-          dataBuffer.buffer,
-          timestampBuffer.buffer,
+          dataBuffer,
+          timestampBuffer,
           bufferLength,
           maxSamples,
           timeout,
           errorCode
         );
-        flatData = dataBuffer.toArray();
+        flatData = Array.from(dataBuffer);
         break;
       }
       case ChannelFormat.Int16: {
-        const ShortArrayType = RefArray(ref.types.int16);
-        const dataBuffer = new ShortArrayType(bufferLength);
-        samplesRetrieved = lib.lsl_pull_chunk_s(
+        const dataBuffer = createShortArray(bufferLength);
+        samplesRetrieved = lsl_pull_chunk_s(
           this.handle,
-          dataBuffer.buffer,
-          timestampBuffer.buffer,
+          dataBuffer,
+          timestampBuffer,
           bufferLength,
           maxSamples,
           timeout,
           errorCode
         );
-        flatData = dataBuffer.toArray();
+        flatData = Array.from(dataBuffer);
         break;
       }
       case ChannelFormat.Int8: {
-        const CharArrayType = RefArray(ref.types.int8);
-        const dataBuffer = new CharArrayType(bufferLength);
-        samplesRetrieved = lib.lsl_pull_chunk_c(
+        const dataBuffer = createCharArray(bufferLength);
+        samplesRetrieved = lsl_pull_chunk_c(
           this.handle,
-          dataBuffer.buffer,
-          timestampBuffer.buffer,
+          dataBuffer,
+          timestampBuffer,
           bufferLength,
           maxSamples,
           timeout,
           errorCode
         );
-        flatData = dataBuffer.toArray();
+        flatData = Array.from(dataBuffer);
         break;
       }
       case ChannelFormat.String: {
-        const StringArrayType = RefArray(ref.types.CString);
-        const dataBuffer = new StringArrayType(bufferLength);
-        samplesRetrieved = lib.lsl_pull_chunk_str(
+        const dataBuffer = createCharArray(bufferLength); // String arrays need special handling in koffi
+        samplesRetrieved = lsl_pull_chunk_str(
           this.handle,
-          dataBuffer.buffer,
-          timestampBuffer.buffer,
+          dataBuffer,
+          timestampBuffer,
           bufferLength,
           maxSamples,
           timeout,
           errorCode
         );
-        flatData = dataBuffer.toArray();
+        flatData = Array.from(dataBuffer).map(String);
         break;
       }
       default:
         throw new Error(`Unsupported channel format: ${this.channelFormat}`);
     }
 
-    const error = errorCode.deref();
+    const error = koffi.decode(errorCode, 'int32', 0);
     if (error < 0 && error !== ErrorCode.TimeoutError) {
       throw new Error(`Pull chunk error: ${error}`);
     }
@@ -296,12 +307,20 @@ export class StreamInlet extends EventEmitter {
     const timestamps: number[] = [];
     
     for (let s = 0; s < samplesRetrieved; s++) {
-      const sample: number[] | string[] = [];
-      for (let c = 0; c < this.channelCount; c++) {
-        sample.push(flatData[s * this.channelCount + c]);
+      if (this.channelFormat === ChannelFormat.String) {
+        const sample: string[] = [];
+        for (let c = 0; c < this.channelCount; c++) {
+          sample.push(String((flatData as number[])[s * this.channelCount + c]));
+        }
+        samples.push(sample);
+      } else {
+        const sample: number[] = [];
+        for (let c = 0; c < this.channelCount; c++) {
+          sample.push((flatData as number[])[s * this.channelCount + c]);
+        }
+        samples.push(sample);
       }
-      samples.push(sample);
-      timestamps.push(timestampBuffer.get(s));
+      timestamps.push(timestampBuffer[s]);
     }
 
     return { samples, timestamps };
@@ -367,10 +386,10 @@ export class StreamInlet extends EventEmitter {
    * @returns Time correction offset
    */
   timeCorrection(timeout = FOREVER): number {
-    const errorCode = ref.alloc(ref.types.int32);
-    const correction = lib.lsl_time_correction(this.handle, timeout, errorCode);
+    const errorCode = koffi.alloc('int32', 1);
+    const correction = lsl_time_correction(this.handle, timeout, errorCode);
     
-    const error = errorCode.deref();
+    const error = koffi.decode(errorCode, 'int32', 0);
     if (error < 0) {
       throw new Error(`Time correction error: ${error}`);
     }
@@ -384,11 +403,11 @@ export class StreamInlet extends EventEmitter {
    * @returns Object with correction, remote time, and uncertainty
    */
   timeCorrectionEx(timeout = FOREVER): { correction: number; remoteTime: number; uncertainty: number } {
-    const errorCode = ref.alloc(ref.types.int32);
-    const remoteTime = ref.alloc(ref.types.double);
-    const uncertainty = ref.alloc(ref.types.double);
+    const errorCode = koffi.alloc('int32', 1);
+    const remoteTime = koffi.alloc('double', 1);
+    const uncertainty = koffi.alloc('double', 1);
     
-    const correction = lib.lsl_time_correction_ex(
+    const correction = lsl_time_correction_ex(
       this.handle,
       remoteTime,
       uncertainty,
@@ -396,15 +415,15 @@ export class StreamInlet extends EventEmitter {
       errorCode
     );
     
-    const error = errorCode.deref();
+    const error = koffi.decode(errorCode, 'int32', 0);
     if (error < 0) {
       throw new Error(`Time correction error: ${error}`);
     }
     
     return {
       correction,
-      remoteTime: remoteTime.deref(),
-      uncertainty: uncertainty.deref(),
+      remoteTime: koffi.decode(remoteTime, 'double', 0),
+      uncertainty: koffi.decode(uncertainty, 'double', 0),
     };
   }
 
@@ -412,14 +431,14 @@ export class StreamInlet extends EventEmitter {
    * Get the number of samples available
    */
   samplesAvailable(): number {
-    return lib.lsl_samples_available(this.handle);
+    return lsl_samples_available(this.handle);
   }
 
   /**
    * Check if the clock was reset
    */
   wasClockReset(): boolean {
-    return lib.lsl_was_clock_reset(this.handle) !== 0;
+    return lsl_was_clock_reset(this.handle) !== 0;
   }
 
   /**
@@ -428,7 +447,7 @@ export class StreamInlet extends EventEmitter {
    * @returns Previous halftime value
    */
   smoothingHalftime(halftime?: number): number {
-    return lib.lsl_smoothing_halftime(this.handle, halftime || -1);
+    return lsl_smoothing_halftime(this.handle, halftime || -1);
   }
 
   /**
@@ -437,10 +456,10 @@ export class StreamInlet extends EventEmitter {
    * @returns Updated StreamInfo
    */
   getFullInfo(timeout = FOREVER): StreamInfo {
-    const errorCode = ref.alloc(ref.types.int32);
-    const infoHandle = lib.lsl_get_fullinfo(this.handle, timeout, errorCode);
+    const errorCode = koffi.alloc('int32', 1);
+    const infoHandle = lsl_get_fullinfo(this.handle, timeout, errorCode);
     
-    const error = errorCode.deref();
+    const error = koffi.decode(errorCode, 'int32', 0);
     if (error < 0) {
       throw new Error(`Get full info error: ${error}`);
     }
@@ -451,7 +470,7 @@ export class StreamInlet extends EventEmitter {
   /**
    * Get the internal handle
    */
-  getHandle(): Buffer {
+  getHandle(): any {
     return this.handle;
   }
 }

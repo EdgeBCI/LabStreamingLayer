@@ -39,27 +39,32 @@ export {
 } from './constants';
 
 // Utility functions from lib
-import { lib } from './lib';
+import { 
+  lsl_protocol_version,
+  lsl_library_version,
+  lsl_library_info,
+  lsl_local_clock
+} from './lib';
 
 /**
  * Get the protocol version used by the library
  */
 export function protocolVersion(): number {
-  return lib.lsl_protocol_version();
+  return lsl_protocol_version();
 }
 
 /**
  * Get the library version
  */
 export function libraryVersion(): number {
-  return lib.lsl_library_version();
+  return lsl_library_version();
 }
 
 /**
  * Get library info string
  */
 export function libraryInfo(): string {
-  return lib.lsl_library_info() || '';
+  return lsl_library_info() || '';
 }
 
 /**
@@ -67,11 +72,15 @@ export function libraryInfo(): string {
  * This is the time used for timestamps if no custom timestamp is provided
  */
 export function localClock(): number {
-  return lib.lsl_local_clock();
+  return lsl_local_clock();
 }
 
 // Re-export commonly used types for convenience
 export type { default as lib } from './lib';
+
+// Import the constants/functions we need for aliases
+import { ChannelFormat, ProcessingOptions, ErrorCode } from './constants';
+import { resolveByProp, resolveByPred, resolveStreams } from './resolver';
 
 // Convenience aliases for backward compatibility
 export const channel_format_t = ChannelFormat;
