@@ -135,37 +135,60 @@ export class StreamOutlet {
   /**
    * Push a list of samples into the outlet.
    * 
-   * @param x - A list of samples, as a 2-D array where each row is a sample.
+   * @param x - A list of samples. Can be:
+   *            - A 2-D array where each row is a sample
+   *            - A 1-D flattened array of multiplexed values (e.g., [ch1_s1, ch2_s1, ch1_s2, ch2_s2, ...])
    * @param timestamp - Optional, float or array of floats.
    *                    If float and != 0.0: the capture time of the most recent sample.
    *                    If array of floats: the time stamps for each sample.
    * @param pushthrough - Whether to push the chunk through to the receivers instead of buffering it 
    *                      with subsequent samples. (default true)
    */
-  pushChunk(x: any[][], timestamp: number | number[] = 0.0, pushthrough: boolean = true): void {
-    const numSamples = x.length;
-    if (numSamples === 0) {
+  pushChunk(x: any[][] | any[], timestamp: number | number[] = 0.0, pushthrough: boolean = true): void {
+    if (x.length === 0) {
       return;
     }
 
-    // Verify all samples have correct channel count
-    for (let i = 0; i < numSamples; i++) {
-      if (x[i].length !== this.channelCount) {
+    let flatData: any[];
+    let numSamples: number;
+
+    // Check if input is 2D array or 1D flattened array
+    if (Array.isArray(x[0])) {
+      // 2D array: each element is a sample
+      const x2d = x as any[][];
+      numSamples = x2d.length;
+      
+      // Verify all samples have correct channel count
+      for (let i = 0; i < numSamples; i++) {
+        if (x2d[i].length !== this.channelCount) {
+          throw new Error(
+            `Sample ${i} has ${x2d[i].length} channels, expected ${this.channelCount}.`
+          );
+        }
+      }
+
+      // Flatten the 2D array
+      flatData = [];
+      for (const sample of x2d) {
+        flatData.push(...sample);
+      }
+    } else {
+      // 1D flattened array: values are multiplexed
+      flatData = x as any[];
+      
+      // Verify the array length is a multiple of channel count
+      if (flatData.length % this.channelCount !== 0) {
         throw new Error(
-          `Sample ${i} has ${x[i].length} channels, expected ${this.channelCount}.`
+          `Flattened array length (${flatData.length}) must be a multiple of channel count (${this.channelCount}).`
         );
       }
+      
+      numSamples = flatData.length / this.channelCount;
     }
 
     const pusht = pushthrough ? 1 : 0;
     let result: number;
     const dataElements = numSamples * this.channelCount;
-
-    // Flatten the 2D array
-    const flatData: any[] = [];
-    for (const sample of x) {
-      flatData.push(...sample);
-    }
 
     if (Array.isArray(timestamp)) {
       // Multiple timestamps provided

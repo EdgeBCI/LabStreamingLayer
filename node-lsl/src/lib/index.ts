@@ -237,6 +237,7 @@ export const lsl_pull_chunk_l = lib.func('unsigned long lsl_pull_chunk_l(lsl_inl
 export const lsl_samples_available = lib.func('uint32_t lsl_samples_available(lsl_inlet* in)');
 export const lsl_was_clock_reset = lib.func('uint32_t lsl_was_clock_reset(lsl_inlet* in)');
 export const lsl_smoothing_halftime = lib.func('float lsl_smoothing_halftime(lsl_inlet* in, float value)');
+export const lsl_inlet_flush = lib.func('uint32_t lsl_inlet_flush(lsl_inlet* in)');
 
 // Resolver functions
 export const lsl_resolve_all = lib.func('int lsl_resolve_all(lsl_streaminfo** buffer, uint32_t buffer_elements, double wait_time)');

@@ -26,6 +26,7 @@ import {
   lsl_samples_available,
   lsl_was_clock_reset,
   lsl_smoothing_halftime,
+  lsl_inlet_flush,
   lsl_destroy_string,
 } from './lib';
 import { StreamInfo } from './info';
@@ -243,12 +244,16 @@ export class StreamInlet {
    * @param timeout - The timeout for this operation (default 0.0).
    *                  If passed as 0.0, only samples available for immediate pickup will be returned.
    * @param maxSamples - Maximum number of samples to return (default 1024).
+   * @param destObj - Optional typed array or buffer object that supports the buffer interface.
+   *                  If provided, the data will be written in-place and the samples array 
+   *                  returned will be null. It is up to the caller to trim the buffer to the 
+   *                  appropriate number of samples based on the returned sample count.
    * @returns A tuple [samples, timestamps] where samples is a 2D array of channel values 
-   *          (each row is a sample) and timestamps is an array of capture times.
-   *          Returns [[], []] if no samples are available.
+   *          (each row is a sample) or null if destObj was provided, and timestamps is an 
+   *          array of capture times. Returns [[], []] if no samples are available.
    * @throws LostError if the stream source has been lost.
    */
-  pullChunk(timeout: number = 0.0, maxSamples: number = 1024): [any[][], number[]] {
+  pullChunk(timeout: number = 0.0, maxSamples: number = 1024, destObj?: ArrayBufferView): [any[][] | null, number[]] {
     const errcode = koffi.alloc('int');
     const dataBufferElements = maxSamples * this.channelCount;
     const timestampBuffer = new Float64Array(maxSamples);
@@ -257,20 +262,24 @@ export class StreamInlet {
 
     switch (this.channelFormat) {
       case 1: // cfFloat32
-        const floatBuffer = new Float32Array(dataBufferElements);
+        const floatBuffer = destObj && destObj instanceof Float32Array 
+          ? destObj as Float32Array
+          : new Float32Array(dataBufferElements);
         samplesReceived = Number(lsl_pull_chunk_f(
           this.handle, floatBuffer, timestampBuffer,
           dataBufferElements, maxSamples, timeout, errcode
         ));
-        flatData = Array.from(floatBuffer.slice(0, samplesReceived * this.channelCount));
+        flatData = destObj ? null : Array.from(floatBuffer.slice(0, samplesReceived * this.channelCount));
         break;
       case 2: // cfDouble64
-        const doubleBuffer = new Float64Array(dataBufferElements);
+        const doubleBuffer = destObj && destObj instanceof Float64Array
+          ? destObj as Float64Array
+          : new Float64Array(dataBufferElements);
         samplesReceived = Number(lsl_pull_chunk_d(
           this.handle, doubleBuffer, timestampBuffer,
           dataBufferElements, maxSamples, timeout, errcode
         ));
-        flatData = Array.from(doubleBuffer.slice(0, samplesReceived * this.channelCount));
+        flatData = destObj ? null : Array.from(doubleBuffer.slice(0, samplesReceived * this.channelCount));
         break;
       case 3: // cfString
         const stringPtrs = koffi.alloc('char*', dataBufferElements);
@@ -289,36 +298,44 @@ export class StreamInlet {
         }
         break;
       case 4: // cfInt32
-        const int32Buffer = new Int32Array(dataBufferElements);
+        const int32Buffer = destObj && destObj instanceof Int32Array
+          ? destObj as Int32Array
+          : new Int32Array(dataBufferElements);
         samplesReceived = Number(lsl_pull_chunk_i(
           this.handle, int32Buffer, timestampBuffer,
           dataBufferElements, maxSamples, timeout, errcode
         ));
-        flatData = Array.from(int32Buffer.slice(0, samplesReceived * this.channelCount));
+        flatData = destObj ? null : Array.from(int32Buffer.slice(0, samplesReceived * this.channelCount));
         break;
       case 5: // cfInt16
-        const int16Buffer = new Int16Array(dataBufferElements);
+        const int16Buffer = destObj && destObj instanceof Int16Array
+          ? destObj as Int16Array
+          : new Int16Array(dataBufferElements);
         samplesReceived = Number(lsl_pull_chunk_s(
           this.handle, int16Buffer, timestampBuffer,
           dataBufferElements, maxSamples, timeout, errcode
         ));
-        flatData = Array.from(int16Buffer.slice(0, samplesReceived * this.channelCount));
+        flatData = destObj ? null : Array.from(int16Buffer.slice(0, samplesReceived * this.channelCount));
         break;
       case 6: // cfInt8
-        const int8Buffer = new Int8Array(dataBufferElements);
+        const int8Buffer = destObj && destObj instanceof Int8Array
+          ? destObj as Int8Array
+          : new Int8Array(dataBufferElements);
         samplesReceived = Number(lsl_pull_chunk_c(
           this.handle, int8Buffer, timestampBuffer,
           dataBufferElements, maxSamples, timeout, errcode
         ));
-        flatData = Array.from(int8Buffer.slice(0, samplesReceived * this.channelCount));
+        flatData = destObj ? null : Array.from(int8Buffer.slice(0, samplesReceived * this.channelCount));
         break;
       case 7: // cfInt64
-        const int64Buffer = new BigInt64Array(dataBufferElements);
+        const int64Buffer = destObj && destObj instanceof BigInt64Array
+          ? destObj as BigInt64Array
+          : new BigInt64Array(dataBufferElements);
         samplesReceived = Number(lsl_pull_chunk_l(
           this.handle, int64Buffer, timestampBuffer,
           dataBufferElements, maxSamples, timeout, errcode
         ));
-        flatData = Array.from(int64Buffer.slice(0, samplesReceived * this.channelCount))
+        flatData = destObj ? null : Array.from(int64Buffer.slice(0, samplesReceived * this.channelCount))
           .map(v => Number(v));
         break;
       default:
@@ -332,14 +349,17 @@ export class StreamInlet {
     }
     handleError(error);
 
-    // Convert flat data to 2D array
-    const samples: any[][] = [];
-    for (let i = 0; i < samplesReceived; i++) {
-      const sample: any[] = [];
-      for (let j = 0; j < this.channelCount; j++) {
-        sample.push(flatData[i * this.channelCount + j]);
+    // Convert flat data to 2D array (only if destObj was not provided)
+    let samples: any[][] | null = null;
+    if (!destObj && flatData) {
+      samples = [];
+      for (let i = 0; i < samplesReceived; i++) {
+        const sample: any[] = [];
+        for (let j = 0; j < this.channelCount; j++) {
+          sample.push(flatData[i * this.channelCount + j]);
+        }
+        samples.push(sample);
       }
-      samples.push(sample);
     }
 
     const timestamps = Array.from(timestampBuffer.slice(0, samplesReceived));
@@ -376,6 +396,9 @@ export class StreamInlet {
    * (usually due to temperature changes); the default is able to track 
    * changes of up to 10 miliseconds per minute.
    * 
+   * Note: This method is not available in the Python pylsl API but is provided
+   * as an extension in node-lsl for advanced use cases.
+   * 
    * @param value - The new half-time in seconds. The default is 90 seconds.
    * @returns The previous value.
    */
@@ -384,14 +407,11 @@ export class StreamInlet {
   }
 
   /**
-   * Drop all queued samples and replace them with a single new sample.
-   * This is useful for streams that have irregular sampling rates and where 
-   * only the most recent sample is of interest.
+   * Drop all queued not-yet pulled samples.
+   * 
+   * @returns The number of dropped samples.
    */
-  flush(): void {
-    // Pull all available samples to clear the buffer
-    while (this.samplesAvailable() > 0) {
-      this.pullSample(0.0);
-    }
+  flush(): number {
+    return lsl_inlet_flush(this.handle);
   }
 }
