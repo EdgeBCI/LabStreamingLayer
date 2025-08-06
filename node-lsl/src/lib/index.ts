@@ -127,8 +127,6 @@ function findLibrary(): string {
 
 // Load the library
 const libPath = findLibrary();
-console.log(`Loading LSL library from: ${libPath}`);
-
 export const lib = koffi.load(libPath);
 
 // Define opaque handle types for LSL structures
@@ -240,16 +238,16 @@ export const lsl_smoothing_halftime = lib.func('float lsl_smoothing_halftime(lsl
 export const lsl_inlet_flush = lib.func('uint32_t lsl_inlet_flush(lsl_inlet* in)');
 
 // Resolver functions
-export const lsl_resolve_all = lib.func('int lsl_resolve_all(lsl_streaminfo** buffer, uint32_t buffer_elements, double wait_time)');
-export const lsl_resolve_byprop = lib.func('int lsl_resolve_byprop(lsl_streaminfo** buffer, uint32_t buffer_elements, const char* prop, const char* value, int minimum, double timeout)');
-export const lsl_resolve_bypred = lib.func('int lsl_resolve_bypred(lsl_streaminfo** buffer, uint32_t buffer_elements, const char* pred, int minimum, double timeout)');
+export const lsl_resolve_all = lib.func('int lsl_resolve_all(void* buffer, uint32_t buffer_elements, double wait_time)');
+export const lsl_resolve_byprop = lib.func('int lsl_resolve_byprop(void* buffer, uint32_t buffer_elements, const char* prop, const char* value, int minimum, double timeout)');
+export const lsl_resolve_bypred = lib.func('int lsl_resolve_bypred(void* buffer, uint32_t buffer_elements, const char* pred, int minimum, double timeout)');
 
 // Continuous resolver functions
 export const lsl_create_continuous_resolver = lib.func('lsl_continuous_resolver* lsl_create_continuous_resolver(double forget_after)');
 export const lsl_create_continuous_resolver_byprop = lib.func('lsl_continuous_resolver* lsl_create_continuous_resolver_byprop(const char* prop, const char* value, double forget_after)');
 export const lsl_create_continuous_resolver_bypred = lib.func('lsl_continuous_resolver* lsl_create_continuous_resolver_bypred(const char* pred, double forget_after)');
 export const lsl_destroy_continuous_resolver = lib.func('void lsl_destroy_continuous_resolver(lsl_continuous_resolver* res)');
-export const lsl_resolver_results = lib.func('int lsl_resolver_results(lsl_continuous_resolver* res, lsl_streaminfo** buffer, uint32_t buffer_elements)');
+export const lsl_resolver_results = lib.func('int lsl_resolver_results(lsl_continuous_resolver* res, void* buffer, uint32_t buffer_elements)');
 
 // XML functions
 export const lsl_first_child = lib.func('lsl_xml_ptr* lsl_first_child(lsl_xml_ptr* e)');
