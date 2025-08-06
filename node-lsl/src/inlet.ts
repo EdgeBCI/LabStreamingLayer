@@ -1,34 +1,21 @@
 import { EventEmitter } from 'events';
 import * as koffi from 'koffi';
 import { 
-  createFloatArray, 
-  createDoubleArray, 
-  createIntArray, 
-  createShortArray, 
-  createCharArray,
+  createDoubleArray,
   lsl_create_inlet,
   lsl_destroy_inlet,
   lsl_open_stream,
   lsl_close_stream,
   lsl_set_postprocessing,
-  lsl_pull_sample_f,
-  lsl_pull_sample_d,
-  lsl_pull_sample_i,
-  lsl_pull_sample_s,
-  lsl_pull_sample_c,
-  lsl_pull_sample_str,
-  lsl_pull_chunk_f,
-  lsl_pull_chunk_d,
-  lsl_pull_chunk_i,
-  lsl_pull_chunk_s,
-  lsl_pull_chunk_c,
-  lsl_pull_chunk_str,
   lsl_time_correction,
   lsl_time_correction_ex,
   lsl_samples_available,
   lsl_was_clock_reset,
   lsl_smoothing_halftime,
-  lsl_get_fullinfo
+  lsl_get_fullinfo,
+  fmt2PullSample,
+  fmt2PullChunk,
+  fmt2ArrayCreator
 } from './lib';
 import { StreamInfo } from './streaminfo';
 import { ChannelFormat, ProcessingOptions, ErrorCode, FOREVER, TimeoutError, LostError } from './constants';
@@ -55,6 +42,10 @@ export class StreamInlet extends EventEmitter {
   private channelCount: number;
   private channelFormat: ChannelFormat;
   private streamingInterval?: NodeJS.Timeout;
+  // Pre-computed function selections for efficient runtime calls
+  private doPullSample: any;
+  private doPullChunk: any;
+  private arrayCreator: any;
 
   /**
    * Create a new StreamInlet
@@ -79,6 +70,15 @@ export class StreamInlet extends EventEmitter {
 
     if (!this.handle) {
       throw new Error('Failed to create stream inlet');
+    }
+
+    // Pre-compute function selections based on channel format (like pylsl)
+    this.doPullSample = fmt2PullSample[this.channelFormat];
+    this.doPullChunk = fmt2PullChunk[this.channelFormat];
+    this.arrayCreator = fmt2ArrayCreator[this.channelFormat];
+
+    if (!this.doPullSample) {
+      throw new Error(`Unsupported channel format: ${this.channelFormat}`);
     }
 
     // Set up finalizer for automatic cleanup
@@ -143,51 +143,21 @@ export class StreamInlet extends EventEmitter {
     let timestamp: number;
     let sample: number[] | string[];
 
-    switch (this.channelFormat) {
-      case ChannelFormat.Float32: {
-        const buffer = createFloatArray(this.channelCount);
-        timestamp = lsl_pull_sample_f(this.handle, buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer);
-        break;
+    if (this.channelFormat === ChannelFormat.String) {
+      // Special handling for string channels
+      const stringBuffer = koffi.alloc('str', this.channelCount);
+      timestamp = this.doPullSample(this.handle, stringBuffer, this.channelCount, timeout, errorCode);
+      const stringSample: string[] = [];
+      for (let i = 0; i < this.channelCount; i++) {
+        const str = String(koffi.decode(stringBuffer, 'str', i) || '');
+        stringSample.push(str);
       }
-      case ChannelFormat.Double64: {
-        const buffer = createDoubleArray(this.channelCount);
-        timestamp = lsl_pull_sample_d(this.handle, buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer);
-        break;
-      }
-      case ChannelFormat.Int32: {
-        const buffer = createIntArray(this.channelCount);
-        timestamp = lsl_pull_sample_i(this.handle, buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer);
-        break;
-      }
-      case ChannelFormat.Int16: {
-        const buffer = createShortArray(this.channelCount);
-        timestamp = lsl_pull_sample_s(this.handle, buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer);
-        break;
-      }
-      case ChannelFormat.Int8: {
-        const buffer = createCharArray(this.channelCount);
-        timestamp = lsl_pull_sample_c(this.handle, buffer, this.channelCount, timeout, errorCode);
-        sample = Array.from(buffer);
-        break;
-      }
-      case ChannelFormat.String: {
-        // For string channels, we need to create a buffer of string pointers
-        const stringBuffer = koffi.alloc('str', this.channelCount);
-        timestamp = lsl_pull_sample_str(this.handle, stringBuffer, this.channelCount, timeout, errorCode);
-        const stringSample: string[] = [];
-        for (let i = 0; i < this.channelCount; i++) {
-          const str = String(koffi.decode(stringBuffer, 'str', i) || '');
-          stringSample.push(str);
-        }
-        sample = stringSample;
-        break;
-      }
-      default:
-        throw new Error(`Unsupported channel format: ${this.channelFormat}`);
+      sample = stringSample;
+    } else {
+      // Numeric channels - use pre-computed array creator and function
+      const buffer = this.arrayCreator(this.channelCount);
+      timestamp = this.doPullSample(this.handle, buffer, this.channelCount, timeout, errorCode);
+      sample = Array.from(buffer) as number[];
     }
 
     const error = koffi.decode(errorCode, 'int32', 0);
@@ -217,99 +187,37 @@ export class StreamInlet extends EventEmitter {
     let samplesRetrieved: number;
     let flatData: number[] | string[];
 
-    switch (this.channelFormat) {
-      case ChannelFormat.Float32: {
-        const dataBuffer = createFloatArray(bufferLength);
-        samplesRetrieved = lsl_pull_chunk_f(
-          this.handle,
-          dataBuffer,
-          timestampBuffer,
-          bufferLength,
-          maxSamples,
-          timeout,
-          errorCode
-        );
-        flatData = Array.from(dataBuffer);
-        break;
+    if (this.channelFormat === ChannelFormat.String) {
+      // Special handling for string channels
+      const stringBuffer = koffi.alloc('str', bufferLength);
+      samplesRetrieved = this.doPullChunk(
+        this.handle,
+        stringBuffer,
+        timestampBuffer,
+        bufferLength,
+        maxSamples,
+        timeout,
+        errorCode
+      );
+      const stringFlatData: string[] = [];
+      for (let i = 0; i < bufferLength; i++) {
+        const str = String(koffi.decode(stringBuffer, 'str', i) || '');
+        stringFlatData.push(str);
       }
-      case ChannelFormat.Double64: {
-        const dataBuffer = createDoubleArray(bufferLength);
-        samplesRetrieved = lsl_pull_chunk_d(
-          this.handle,
-          dataBuffer,
-          timestampBuffer,
-          bufferLength,
-          maxSamples,
-          timeout,
-          errorCode
-        );
-        flatData = Array.from(dataBuffer);
-        break;
-      }
-      case ChannelFormat.Int32: {
-        const dataBuffer = createIntArray(bufferLength);
-        samplesRetrieved = lsl_pull_chunk_i(
-          this.handle,
-          dataBuffer,
-          timestampBuffer,
-          bufferLength,
-          maxSamples,
-          timeout,
-          errorCode
-        );
-        flatData = Array.from(dataBuffer);
-        break;
-      }
-      case ChannelFormat.Int16: {
-        const dataBuffer = createShortArray(bufferLength);
-        samplesRetrieved = lsl_pull_chunk_s(
-          this.handle,
-          dataBuffer,
-          timestampBuffer,
-          bufferLength,
-          maxSamples,
-          timeout,
-          errorCode
-        );
-        flatData = Array.from(dataBuffer);
-        break;
-      }
-      case ChannelFormat.Int8: {
-        const dataBuffer = createCharArray(bufferLength);
-        samplesRetrieved = lsl_pull_chunk_c(
-          this.handle,
-          dataBuffer,
-          timestampBuffer,
-          bufferLength,
-          maxSamples,
-          timeout,
-          errorCode
-        );
-        flatData = Array.from(dataBuffer);
-        break;
-      }
-      case ChannelFormat.String: {
-        // For string channels, allocate buffer for string pointers
-        const stringBuffer = koffi.alloc('str', bufferLength);
-        samplesRetrieved = lsl_pull_chunk_str(
-          this.handle,
-          stringBuffer,
-          timestampBuffer,
-          bufferLength,
-          maxSamples,
-          timeout,
-          errorCode
-        );
-        const stringFlatData: string[] = [];
-        for (let i = 0; i < bufferLength; i++) {
-          const str = String(koffi.decode(stringBuffer, 'str', i) || '');
-          stringFlatData.push(str);
-        }
-        flatData = stringFlatData;
-        break;
-      }
-      default:
-        throw new Error(`Unsupported channel format: ${this.channelFormat}`);
+      flatData = stringFlatData;
+    } else {
+      // Numeric channels - use pre-computed array creator and function
+      const dataBuffer = this.arrayCreator(bufferLength);
+      samplesRetrieved = this.doPullChunk(
+        this.handle,
+        dataBuffer,
+        timestampBuffer,
+        bufferLength,
+        maxSamples,
+        timeout,
+        errorCode
+      );
+      flatData = Array.from(dataBuffer) as number[];
     }
 
     const error = koffi.decode(errorCode, 'int32', 0);
@@ -328,7 +236,7 @@ export class StreamInlet extends EventEmitter {
       if (this.channelFormat === ChannelFormat.String) {
         const sample: string[] = [];
         for (let c = 0; c < this.channelCount; c++) {
-          sample.push(String((flatData as number[])[s * this.channelCount + c]));
+          sample.push(String((flatData as string[])[s * this.channelCount + c]));
         }
         samples.push(sample);
       } else {

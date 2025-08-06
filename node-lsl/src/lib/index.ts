@@ -309,4 +309,95 @@ export const lsl_create_continuous_resolver_bypred = lib.func('void* lsl_create_
 export const lsl_resolver_results = lib.func('int32 lsl_resolver_results(void* res, _Out_ void** buffer, uint32 buffer_elements)');
 export const lsl_destroy_continuous_resolver = lib.func('void lsl_destroy_continuous_resolver(void* res)');
 
+// Function mapping arrays for pre-computed function selection (similar to pylsl)
+// Index corresponds to ChannelFormat enum values
+export const fmt2PushSample = [
+  null,                    // cf_undefined = 0
+  lsl_push_sample_f,       // cf_float32 = 1
+  lsl_push_sample_d,       // cf_double64 = 2
+  lsl_push_sample_str,     // cf_string = 3
+  lsl_push_sample_i,       // cf_int32 = 4
+  lsl_push_sample_s,       // cf_int16 = 5
+  lsl_push_sample_c,       // cf_int8 = 6
+  null                     // cf_int64 = 7 (not supported)
+];
+
+export const fmt2PushSampleTp = [
+  null,                    // cf_undefined = 0
+  lsl_push_sample_ftp,     // cf_float32 = 1
+  lsl_push_sample_dtp,     // cf_double64 = 2
+  lsl_push_sample_strtp,   // cf_string = 3
+  lsl_push_sample_itp,     // cf_int32 = 4
+  lsl_push_sample_stp,     // cf_int16 = 5
+  lsl_push_sample_ctp,     // cf_int8 = 6
+  null                     // cf_int64 = 7 (not supported)
+];
+
+export const fmt2PushChunk = [
+  null,                    // cf_undefined = 0
+  lsl_push_chunk_f,        // cf_float32 = 1
+  lsl_push_chunk_d,        // cf_double64 = 2
+  lsl_push_chunk_str,      // cf_string = 3
+  lsl_push_chunk_i,        // cf_int32 = 4
+  lsl_push_chunk_s,        // cf_int16 = 5
+  lsl_push_chunk_c,        // cf_int8 = 6
+  null                     // cf_int64 = 7 (not supported)
+];
+
+export const fmt2PushChunkTp = [
+  null,                    // cf_undefined = 0
+  lsl_push_chunk_ftp,      // cf_float32 = 1
+  lsl_push_chunk_dtp,      // cf_double64 = 2
+  lsl_push_chunk_strtp,    // cf_string = 3
+  lsl_push_chunk_itp,      // cf_int32 = 4
+  lsl_push_chunk_stp,      // cf_int16 = 5
+  lsl_push_chunk_ctp,      // cf_int8 = 6
+  null                     // cf_int64 = 7 (not supported)
+];
+
+export const fmt2PushChunkTnp = [
+  null,                    // cf_undefined = 0
+  lsl_push_chunk_ftnp,     // cf_float32 = 1
+  lsl_push_chunk_dtnp,     // cf_double64 = 2
+  lsl_push_chunk_strtnp,   // cf_string = 3
+  lsl_push_chunk_itnp,     // cf_int32 = 4
+  lsl_push_chunk_stnp,     // cf_int16 = 5
+  lsl_push_chunk_ctnp,     // cf_int8 = 6
+  null                     // cf_int64 = 7 (not supported)
+];
+
+export const fmt2PullSample = [
+  null,                    // cf_undefined = 0
+  lsl_pull_sample_f,       // cf_float32 = 1
+  lsl_pull_sample_d,       // cf_double64 = 2
+  lsl_pull_sample_str,     // cf_string = 3
+  lsl_pull_sample_i,       // cf_int32 = 4
+  lsl_pull_sample_s,       // cf_int16 = 5
+  lsl_pull_sample_c,       // cf_int8 = 6
+  null                     // cf_int64 = 7 (not supported)
+];
+
+export const fmt2PullChunk = [
+  null,                    // cf_undefined = 0
+  lsl_pull_chunk_f,        // cf_float32 = 1
+  lsl_pull_chunk_d,        // cf_double64 = 2
+  lsl_pull_chunk_str,      // cf_string = 3
+  lsl_pull_chunk_i,        // cf_int32 = 4
+  lsl_pull_chunk_s,        // cf_int16 = 5
+  lsl_pull_chunk_c,        // cf_int8 = 6
+  null                     // cf_int64 = 7 (not supported)
+];
+
+// Array creation functions mapping for pre-computed buffer creation
+export const fmt2ArrayCreator = [
+  null,                    // cf_undefined = 0
+  createFloatArray,        // cf_float32 = 1
+  createDoubleArray,       // cf_double64 = 2
+  null,                    // cf_string = 3 (handled differently)
+  createIntArray,          // cf_int32 = 4
+  createShortArray,        // cf_int16 = 5
+  createCharArray,         // cf_int8 = 6
+  null                     // cf_int64 = 7 (not supported)
+];
+
 export default lib;
