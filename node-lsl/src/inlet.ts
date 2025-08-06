@@ -18,7 +18,7 @@ import {
   fmt2ArrayCreator
 } from './lib';
 import { StreamInfo } from './streaminfo';
-import { ChannelFormat, ProcessingOptions, ErrorCode, FOREVER, TimeoutError, LostError } from './constants';
+import { ChannelFormat, ProcessingOptions, ErrorCode, FOREVER, TimeoutError, LostError } from './util';
 
 /**
  * Result of pull operations

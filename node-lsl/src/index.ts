@@ -55,7 +55,7 @@ export {
   proc_monotonize,
   proc_threadsafe,
   proc_all,
-} from './constants';
+} from './util';
 
 // Utility functions from lib
 import { 
@@ -98,7 +98,7 @@ export function localClock(): number {
 export type { default as lib } from './lib';
 
 // Import the constants/functions we need for aliases
-import { ChannelFormat, ProcessingOptions, ErrorCode } from './constants';
+import { ChannelFormat, ProcessingOptions, ErrorCode } from './util';
 import { resolveByProp, resolveByPred, resolveStreams } from './resolver';
 
 // Convenience aliases for backward compatibility

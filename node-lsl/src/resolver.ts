@@ -10,7 +10,7 @@ import {
   lsl_destroy_continuous_resolver
 } from './lib';
 import { StreamInfo } from './streaminfo';
-import { FOREVER } from './constants';
+import { FOREVER } from './util';
 
 /**
  * Resolve all streams on the network

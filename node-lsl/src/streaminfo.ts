@@ -39,7 +39,7 @@ import {
   lsl_prepend_child,
   lsl_remove_child_n
 } from './lib';
-import { ChannelFormat, IRREGULAR_RATE, channelFormatToString } from './constants';
+import { ChannelFormat, IRREGULAR_RATE, channelFormatToString } from './util';
 
 /**
  * XMLElement represents an XML element for stream metadata
