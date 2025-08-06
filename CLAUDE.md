@@ -8,4 +8,4 @@
 - LSL GitHub: https://github.com/sccn/labstreaminglayer
 - LSL Release page: https://github.com/sccn/liblsl/releases
 - LSL Core C/C++ library GitHub: https://github.com/sccn/liblsl/tree/702ebe737bccfeb01023e61452d0dc8928ffd6d8
-- LSL Python library (pylsl): https://github.com/labstreaminglayer/pylsl/tree/21fbbc30811fe151992654cdc5fa62a9a0f4d0be
+- LSL Python library (pylsl): https://github.com/labstreaminglayer/pylsl
