@@ -170,6 +170,11 @@ This package provides Node.js bindings for the Lab Streaming Layer (LSL) library
 - LSL: https://github.com/sccn/labstreaminglayer
 - Uses Koffi for FFI: https://koffi.dev/
 
+## Author
+
+**Haowen John Wei**  
+GitHub: [https://github.com/HaowenWeiJohn](https://github.com/HaowenWeiJohn)
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
