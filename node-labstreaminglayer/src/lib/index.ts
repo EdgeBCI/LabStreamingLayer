@@ -197,7 +197,7 @@ export const lsl_push_sample_d = lib.func('int lsl_push_sample_dtp(void* outlet,
 export const lsl_push_sample_i = lib.func('int lsl_push_sample_itp(void* outlet, int32* sample, double timestamp, int pushthrough)');
 export const lsl_push_sample_s = lib.func('int lsl_push_sample_stp(void* outlet, int16* sample, double timestamp, int pushthrough)');
 export const lsl_push_sample_c = lib.func('int lsl_push_sample_ctp(void* outlet, int8* sample, double timestamp, int pushthrough)');
-export const lsl_push_sample_str = lib.func('int lsl_push_sample_strtp(void* outlet, _Out_ char** sample, double timestamp, int pushthrough)');
+export const lsl_push_sample_str = lib.func('int lsl_push_sample_strtp(void* outlet, char** sample, double timestamp, int pushthrough)');
 export const lsl_push_sample_v = lib.func('int lsl_push_sample_vtp(void* outlet, void* sample, double timestamp, int pushthrough)');
 
 
@@ -218,8 +218,8 @@ export const lsl_push_chunk_s = lib.func('int lsl_push_chunk_stp(void* outlet, i
 export const lsl_push_chunk_st = lib.func('int lsl_push_chunk_stnp(void* outlet, int16* samples, uint32 lengths, double* timestamps, int pushthrough)');
 export const lsl_push_chunk_c = lib.func('int lsl_push_chunk_ctp(void* outlet, int8* samples, uint32 lengths, double timestamp, int pushthrough)');
 export const lsl_push_chunk_ct = lib.func('int lsl_push_chunk_ctnp(void* outlet, int8* samples, uint32 lengths, double* timestamps, int pushthrough)');
-export const lsl_push_chunk_str = lib.func('int lsl_push_chunk_strtp(void* outlet, _Out_ char** samples, uint32 lengths, double timestamp, int pushthrough)');
-export const lsl_push_chunk_strt = lib.func('int lsl_push_chunk_strtnp(void* outlet, _Out_ char** samples, uint32 lengths, double* timestamps, int pushthrough)');
+export const lsl_push_chunk_str = lib.func('int lsl_push_chunk_strtp(void* outlet, char** samples, uint32 lengths, double timestamp, int pushthrough)');
+export const lsl_push_chunk_strt = lib.func('int lsl_push_chunk_strtnp(void* outlet, char** samples, uint32 lengths, double* timestamps, int pushthrough)');
 
 
 /* ============================================================================
