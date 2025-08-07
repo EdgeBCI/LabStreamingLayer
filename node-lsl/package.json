@@ -7,13 +7,16 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist",
+    "clean": "rimraf dist",
     "prebuild": "npm run clean",
     "prepublishOnly": "npm run build",
-    "test": "node --test dist/test",
+    "test": "node --test --test-concurrency=1 dist/test/*.test.js",
     "example:send": "node dist/examples/SendData.js",
     "example:receive": "node dist/examples/ReceiveData.js",
-    "example:metadata": "node dist/examples/HandleMetadata.js"
+    "example:metadata": "node dist/examples/HandleMetadata.js",
+    "example:send-chunks": "node dist/examples/SendDataChunks.js",
+    "example:receive-chunks": "node dist/examples/ReceiveDataChunks.js",
+    "example:performance": "node dist/examples/PerformanceComparison.js"
   },
   "keywords": [
     "lsl",
@@ -34,6 +37,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
+    "rimraf": "^6.0.1",
     "typescript": "^5.3.0"
   },
   "engines": {
