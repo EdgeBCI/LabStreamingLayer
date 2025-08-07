@@ -1,2 +1,1 @@
-# node-lsl
-Lab Streaming Layer for Node
+# Lab Streaming Layer Packages
