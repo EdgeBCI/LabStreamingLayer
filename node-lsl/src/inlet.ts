@@ -16,8 +16,21 @@ import {
   lsl_destroy_string
 } from './lib/index.js';
 import { StreamInfo } from './streamInfo.js';
-import { handleError, FOREVER } from './util.js';
+import { handleError, FOREVER, InvalidArgumentError } from './util.js';
 
+// FinalizationRegistry for automatic cleanup
+const inletRegistry = new FinalizationRegistry((obj: any) => {
+  try {
+    lsl_destroy_inlet(obj);
+  } catch (e) {
+    // Silently ignore cleanup errors
+  }
+});
+
+/**
+ * A stream inlet receives streaming data from the network.
+ * Inlets are used to receive data from a specific stream.
+ */
 export class StreamInlet {
   private obj: any; // Pointer to the LSL inlet object
   private channelFormat: number;
@@ -50,6 +63,9 @@ export class StreamInlet {
     if (!this.obj) {
       throw new Error('Could not create stream inlet.');
     }
+    
+    // Register for automatic cleanup
+    inletRegistry.register(this, this.obj, this);
     
     // Set post-processing flags if specified
     if (processingFlags > 0) {
@@ -106,10 +122,14 @@ export class StreamInlet {
     }
   }
   
-  // Destructor
+  /**
+   * Destroy the inlet and free resources.
+   * Called automatically when the object is garbage collected.
+   */
   destroy(): void {
     if (this.obj) {
       try {
+        inletRegistry.unregister(this);
         lsl_destroy_inlet(this.obj);
       } catch (e) {
         // Silently ignore errors during destruction
@@ -142,7 +162,17 @@ export class StreamInlet {
     return result;
   }
   
+  /**
+   * Pull a single sample from the inlet.
+   * @param timeout Timeout in seconds (default: FOREVER)
+   * @param sample Optional array to fill with sample data
+   * @returns Tuple of [sample, timestamp] or [null, null] if no sample available
+   */
   pullSample(timeout: number = FOREVER, sample?: any): [any[], number] | [null, null] {
+    // Input validation
+    if (typeof timeout !== 'number' || timeout < 0) {
+      throw new InvalidArgumentError('Timeout must be a non-negative number');
+    }
     const errcode = [0];
     
     // Pull the sample
@@ -183,11 +213,25 @@ export class StreamInlet {
     }
   }
   
+  /**
+   * Pull a chunk of samples from the inlet.
+   * @param timeout Timeout in seconds (default: 0)
+   * @param maxSamples Maximum number of samples to pull
+   * @param destObj Optional destination buffer
+   * @returns Tuple of [samples, timestamps]
+   */
   pullChunk(
     timeout: number = 0.0,
     maxSamples: number = 1024,
     destObj?: any
   ): [any[][] | null, number[]] {
+    // Input validation
+    if (typeof timeout !== 'number' || timeout < 0) {
+      throw new InvalidArgumentError('Timeout must be a non-negative number');
+    }
+    if (typeof maxSamples !== 'number' || maxSamples <= 0) {
+      throw new InvalidArgumentError('maxSamples must be a positive number');
+    }
     // Get or create reusable buffers for this size
     const maxValues = maxSamples * this.channelCount;
     

@@ -11,6 +11,11 @@ import {
 import { StreamInfo } from './streamInfo.js';
 import { FOREVER } from './util.js';
 
+/**
+ * Find all streams on the network.
+ * @param waitTime Time to wait for streams in seconds (default: 1.0)
+ * @returns Array of StreamInfo objects
+ */
 export function resolveStreams(waitTime: number = 1.0): StreamInfo[] {
   // Create buffer for stream info pointers
   const bufferSize = 1024;
@@ -31,6 +36,14 @@ export function resolveStreams(waitTime: number = 1.0): StreamInfo[] {
   return results;
 }
 
+/**
+ * Find streams by a specific property.
+ * @param prop Property name to match (e.g., 'name', 'type')
+ * @param value Property value to match
+ * @param minimum Minimum number of streams to find
+ * @param timeout Timeout in seconds
+ * @returns Array of StreamInfo objects
+ */
 export function resolveByProp(
   prop: string,
   value: string,
@@ -63,6 +76,13 @@ export function resolveByProp(
   return results;
 }
 
+/**
+ * Find streams by an XPath predicate.
+ * @param predicate XPath predicate string (e.g., "name='MyStream' and type='EEG'")
+ * @param minimum Minimum number of streams to find
+ * @param timeout Timeout in seconds
+ * @returns Array of StreamInfo objects
+ */
 export function resolveByPred(
   predicate: string,
   minimum: number = 1,
@@ -116,6 +136,19 @@ export function resolveStream(...args: any[]): StreamInfo[] {
   throw new Error('Invalid arguments for resolveStream');
 }
 
+// FinalizationRegistry for automatic cleanup
+const resolverRegistry = new FinalizationRegistry((obj: any) => {
+  try {
+    lsl_destroy_continuous_resolver(obj);
+  } catch (e) {
+    // Silently ignore cleanup errors
+  }
+});
+
+/**
+ * Continuously resolves streams in the background.
+ * Useful for monitoring streams that may appear and disappear.
+ */
 export class ContinuousResolver {
   private obj: any; // Pointer to the continuous resolver object
   
@@ -145,12 +178,18 @@ export class ContinuousResolver {
     if (!this.obj) {
       throw new Error('Could not create continuous resolver.');
     }
+    
+    // Register for automatic cleanup
+    resolverRegistry.register(this, this.obj, this);
   }
   
-  // Destructor
+  /**
+   * Destroy the resolver and free resources.
+   */
   destroy(): void {
     if (this.obj) {
       try {
+        resolverRegistry.unregister(this);
         lsl_destroy_continuous_resolver(this.obj);
       } catch (e) {
         // Silently ignore errors during destruction
@@ -159,6 +198,10 @@ export class ContinuousResolver {
     }
   }
   
+  /**
+   * Get the current list of resolved streams.
+   * @returns Array of StreamInfo objects
+   */
   results(): StreamInfo[] {
     // Create buffer for stream info pointers
     const bufferSize = 1024;

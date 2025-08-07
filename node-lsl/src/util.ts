@@ -52,7 +52,7 @@ export class InternalError extends Error {
   }
 }
 
-// Error handler function
+// Error handler function (exported for testing)
 export function handleError(errcode: number | { value: number }): void {
   // Handle both number and object with value property
   const code = typeof errcode === 'number' ? errcode : errcode.value;

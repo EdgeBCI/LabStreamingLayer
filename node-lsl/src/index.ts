@@ -32,7 +32,8 @@ export {
   TimeoutError,
   LostError,
   InvalidArgumentError,
-  InternalError
+  InternalError,
+  handleError
 } from './util.js';
 
 // Channel format constants

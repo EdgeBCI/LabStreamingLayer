@@ -1,17 +1,17 @@
-# Node-LSL
+# node-lsl
 
 Node.js bindings for Lab Streaming Layer (LSL) - A system for unified collection of measurement time series in research experiments.
 
 ## Features
 
-- 🚀 High-performance FFI bindings using Koffi (faster than node-ffi-napi)
-- 📊 Support for all LSL data types (float32, double64, int8/16/32/64, string)
-- 🔄 Real-time data streaming with sub-millisecond precision
+- 🚀 High-performance FFI bindings using Koffi
+- 📊 Support for all LSL data types (float32, double64, string, int32, int16, int8, int64)
+- 🔄 Real-time streaming with sub-millisecond precision
 - 🔍 Stream discovery and resolution
-- ⏱️ Built-in time synchronization
 - 📝 Full metadata support via XML
-- 💻 Cross-platform (Windows, Linux, macOS)
+- 💻 Cross-platform support (Windows, macOS, Linux)
 - 📦 TypeScript support with full type definitions
+- 🧵 Thread-safe operations
 
 ## Installation
 
