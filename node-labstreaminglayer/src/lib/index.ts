@@ -169,7 +169,7 @@ export const lsl_get_uid = lib.func('str lsl_get_uid(void* info)');
 export const lsl_get_session_id = lib.func('str lsl_get_session_id(void* info)');
 export const lsl_get_hostname = lib.func('str lsl_get_hostname(void* info)');
 export const lsl_get_desc = lib.func('void* lsl_get_desc(void* info)');
-export const lsl_get_xml = lib.func('char* lsl_get_xml(void* info)');
+export const lsl_get_xml = lib.func('str lsl_get_xml(void* info)');
 
 
 /* ============================================================================
