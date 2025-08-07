@@ -1,4 +1,4 @@
-# node-lsl
+# node-labstreaminglayer
 
 Node.js bindings for Lab Streaming Layer (LSL) - A system for unified collection of measurement time series in research experiments.
 
@@ -16,7 +16,7 @@ Node.js bindings for Lab Streaming Layer (LSL) - A system for unified collection
 ## Installation
 
 ```bash
-npm install node-lsl
+npm install node-labstreaminglayer
 ```
 
 ## Quick Start
@@ -24,7 +24,7 @@ npm install node-lsl
 ### Sending Data
 
 ```javascript
-import { StreamInfo, StreamOutlet } from 'node-lsl';
+import { StreamInfo, StreamOutlet } from 'node-labstreaminglayer';
 
 // Create stream info
 const info = new StreamInfo('MyStream', 'EEG', 8, 100, 'float32', 'uniqueid123');
@@ -40,7 +40,7 @@ outlet.pushSample(sample);
 ### Receiving Data
 
 ```javascript
-import { resolveStreams, StreamInlet } from 'node-lsl';
+import { resolveStreams, StreamInlet } from 'node-labstreaminglayer';
 
 // Find available streams
 const streams = resolveStreams();
@@ -122,7 +122,7 @@ import {
   proc_clocksync,  // Clock synchronization flag
   proc_dejitter,   // Dejitter timestamps flag
   proc_ALL        // All processing flags
-} from 'node-lsl';
+} from 'node-labstreaminglayer';
 ```
 
 ## Examples

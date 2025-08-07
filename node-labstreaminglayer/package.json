@@ -45,13 +45,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/EdgeBCI/node-lsl.git",
-    "directory": "node-lsl"
+    "url": "https://github.com/EdgeBCI/LabStreamingLayer.git",
+    "directory": "node-labstreaminglayer"
   },
   "bugs": {
-    "url": "https://github.com/EdgeBCI/node-lsl/issues"
+    "url": "https://github.com/EdgeBCI/LabStreamingLayer/issues"
   },
-  "homepage": "https://github.com/EdgeBCI/node-lsl/tree/main/node-lsl#readme",
+  "homepage": "https://github.com/EdgeBCI/LabStreamingLayer/tree/main/node-labstreaminglayer#readme",
   "files": [
     "dist",
     "!dist/test",
