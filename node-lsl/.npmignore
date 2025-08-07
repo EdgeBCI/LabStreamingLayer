@@ -15,7 +15,8 @@ node_modules/
 Thumbs.db
 
 # Test files
-test/
+src/test/
+dist/test/
 *.test.js
 *.spec.js
 
