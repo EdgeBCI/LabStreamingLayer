@@ -1,300 +1,217 @@
+import koffi from 'koffi';
 import {
   lsl_create_outlet,
   lsl_destroy_outlet,
-  lsl_push_sample_ftp,
-  lsl_push_sample_dtp,
-  lsl_push_sample_itp,
-  lsl_push_sample_stp,
-  lsl_push_sample_ctp,
-  lsl_push_sample_strtp,
-  lsl_push_sample_ltp,
-  lsl_push_chunk_ftp,
-  lsl_push_chunk_ftnp,
-  lsl_push_chunk_dtp,
-  lsl_push_chunk_dtnp,
-  lsl_push_chunk_itp,
-  lsl_push_chunk_itnp,
-  lsl_push_chunk_stp,
-  lsl_push_chunk_stnp,
-  lsl_push_chunk_ctp,
-  lsl_push_chunk_ctnp,
-  lsl_push_chunk_strtp,
-  lsl_push_chunk_strtnp,
-  lsl_push_chunk_ltp,
-  lsl_push_chunk_ltnp,
   lsl_have_consumers,
   lsl_wait_for_consumers,
-  lsl_get_info_from_outlet,
-} from './lib';
-import { StreamInfo } from './info';
-import { handleError } from './util';
+  lsl_get_info,
+  fmt2push_sample,
+  fmt2push_chunk,
+  fmt2push_chunk_n,
+  cf_string
+} from './lib/index.js';
+import { StreamInfo } from './streamInfo.js';
+import { handleError } from './util.js';
 
-/**
- * A stream outlet.
- * Outlets are used to make streaming data (and the meta-data) available on the lab network.
- */
 export class StreamOutlet {
-  private handle: any;
-  private destroyed: boolean = false;
+  private obj: any; // Pointer to the LSL outlet object
   private channelFormat: number;
   private channelCount: number;
-
-  /**
-   * Establish a new stream outlet. This makes the stream discoverable.
-   * 
-   * @param info - The StreamInfo object to describe this stream. Stays constant over the lifetime of the outlet.
-   * @param chunkSize - Optionally the desired chunk granularity (in samples) for transmission. 
-   *                    If unspecified, each push operation yields one chunk. Inlets can override this setting. (default 0)
-   * @param maxBuffered - Optionally the maximum amount of data to buffer (in seconds if there is a nominal sampling rate, 
-   *                      otherwise x100 in samples). The default is 6 minutes of data. (default 360)
-   */
+  private doPushSample: any;
+  private doPushChunk: any;
+  private doPushChunkN: any;
+  
   constructor(info: StreamInfo, chunkSize: number = 0, maxBuffered: number = 360) {
-    this.handle = lsl_create_outlet(info.getHandle(), chunkSize, maxBuffered);
+    // Create the outlet
+    this.obj = lsl_create_outlet(info.getHandle(), chunkSize, maxBuffered);
     
-    if (!this.handle) {
+    if (!this.obj) {
       throw new Error('Could not create stream outlet.');
     }
     
-    this.channelFormat = info.getChannelFormat();
-    this.channelCount = info.getChannelCount();
+    // Store stream properties for efficient pushing
+    this.channelFormat = info.channelFormat();
+    this.channelCount = info.channelCount();
+    
+    // Get the appropriate push functions for this data type
+    this.doPushSample = fmt2push_sample[this.channelFormat];
+    this.doPushChunk = fmt2push_chunk[this.channelFormat];
+    this.doPushChunkN = fmt2push_chunk_n[this.channelFormat];
+    
+    if (!this.doPushSample) {
+      throw new Error(`Unsupported channel format: ${this.channelFormat}`);
+    }
   }
-
-  /**
-   * Destroy the outlet.
-   * The outlet will no longer be discoverable after destruction and all connected inlets will stop delivering data.
-   */
+  
+  // Destructor
   destroy(): void {
-    if (!this.destroyed && this.handle) {
+    if (this.obj) {
       try {
-        lsl_destroy_outlet(this.handle);
-        this.destroyed = true;
+        lsl_destroy_outlet(this.obj);
       } catch (e) {
         console.error('StreamOutlet deletion triggered error:', e);
       }
+      this.obj = null;
     }
   }
-
-  /**
-   * Push a sample into the outlet.
-   * 
-   * @param x - A list of values to push (one per channel).
-   * @param timestamp - Optionally the capture time of the sample, in agreement with localClock(); 
-   *                    if 0.0, the current time is used. (default 0.0)
-   * @param pushthrough - Whether to push the sample through to the receivers instead of buffering it 
-   *                      with subsequent samples. Note that the chunk_size, if specified at outlet 
-   *                      construction, takes precedence over the pushthrough flag. (default true)
-   */
+  
   pushSample(x: any[], timestamp: number = 0.0, pushthrough: boolean = true): void {
     if (x.length !== this.channelCount) {
       throw new Error(
         `Length of the sample (${x.length}) must correspond to the stream's channel count (${this.channelCount}).`
       );
     }
-
-    let result: number;
-    const pusht = pushthrough ? 1 : 0;
-
-    switch (this.channelFormat) {
-      case 1: // cfFloat32
-        const floatBuffer = new Float32Array(x);
-        result = lsl_push_sample_ftp(this.handle, floatBuffer, timestamp, pusht);
-        break;
-      case 2: // cfDouble64
-        const doubleBuffer = new Float64Array(x);
-        result = lsl_push_sample_dtp(this.handle, doubleBuffer, timestamp, pusht);
-        break;
-      case 3: // cfString
-        const stringBuffers = x.map(s => Buffer.from(String(s) + '\0', 'utf8'));
-        result = lsl_push_sample_strtp(this.handle, stringBuffers, timestamp, pusht);
-        break;
-      case 4: // cfInt32
-        const int32Buffer = new Int32Array(x);
-        result = lsl_push_sample_itp(this.handle, int32Buffer, timestamp, pusht);
-        break;
-      case 5: // cfInt16
-        const int16Buffer = new Int16Array(x);
-        result = lsl_push_sample_stp(this.handle, int16Buffer, timestamp, pusht);
-        break;
-      case 6: // cfInt8
-        const int8Buffer = new Int8Array(x);
-        result = lsl_push_sample_ctp(this.handle, int8Buffer, timestamp, pusht);
-        break;
-      case 7: // cfInt64
-        const int64Buffer = new BigInt64Array(x.map(v => BigInt(v)));
-        result = lsl_push_sample_ltp(this.handle, int64Buffer, timestamp, pusht);
-        break;
-      default:
-        throw new Error(`Unsupported channel format: ${this.channelFormat}`);
+    
+    // Convert the sample to appropriate format
+    let sample: any;
+    
+    if (this.channelFormat === cf_string) {
+      // For string channels, we need a string array
+      sample = x.map(v => String(v));
+      
+      // For strings, pass the array directly
+      sample = sample;
+    } else {
+      // For numeric channels, create appropriate typed array
+      let TypedArray: any;
+      switch (this.channelFormat) {
+        case 1: // cf_float32
+          TypedArray = Float32Array;
+          break;
+        case 2: // cf_double64
+          TypedArray = Float64Array;
+          break;
+        case 4: // cf_int32
+          TypedArray = Int32Array;
+          break;
+        case 5: // cf_int16
+          TypedArray = Int16Array;
+          break;
+        case 6: // cf_int8
+          TypedArray = Int8Array;
+          break;
+        default:
+          throw new Error(`Unsupported channel format: ${this.channelFormat}`);
+      }
+      sample = new TypedArray(x);
     }
-
+    
+    // Push the sample
+    const result = this.doPushSample(
+      this.obj,
+      sample,
+      timestamp,
+      pushthrough ? 1 : 0
+    );
+    
     handleError(result);
   }
-
-  /**
-   * Push a list of samples into the outlet.
-   * 
-   * @param x - A list of samples. Can be:
-   *            - A 2-D array where each row is a sample
-   *            - A 1-D flattened array of multiplexed values (e.g., [ch1_s1, ch2_s1, ch1_s2, ch2_s2, ...])
-   * @param timestamp - Optional, float or array of floats.
-   *                    If float and != 0.0: the capture time of the most recent sample.
-   *                    If array of floats: the time stamps for each sample.
-   * @param pushthrough - Whether to push the chunk through to the receivers instead of buffering it 
-   *                      with subsequent samples. (default true)
-   */
-  pushChunk(x: any[][] | any[], timestamp: number | number[] = 0.0, pushthrough: boolean = true): void {
-    if (x.length === 0) {
-      return;
-    }
-
+  
+  pushChunk(x: any[] | any[][], timestamp: number | number[] = 0.0, pushthrough: boolean = true): void {
+    // Determine if we have a single timestamp or array of timestamps
+    const hasMultipleTimestamps = Array.isArray(timestamp);
+    const pushFunc = hasMultipleTimestamps ? this.doPushChunkN : this.doPushChunk;
+    
+    // Flatten the data if it's a 2D array
     let flatData: any[];
     let numSamples: number;
-
-    // Check if input is 2D array or 1D flattened array
+    
+    if (x.length === 0) {
+      return; // Don't send empty chunks
+    }
+    
     if (Array.isArray(x[0])) {
-      // 2D array: each element is a sample
-      const x2d = x as any[][];
-      numSamples = x2d.length;
-      
-      // Verify all samples have correct channel count
-      for (let i = 0; i < numSamples; i++) {
-        if (x2d[i].length !== this.channelCount) {
+      // 2D array: array of samples
+      numSamples = x.length;
+      flatData = [];
+      for (const sample of x) {
+        if ((sample as any[]).length !== this.channelCount) {
           throw new Error(
-            `Sample ${i} has ${x2d[i].length} channels, expected ${this.channelCount}.`
+            `Each sample must have the same number of channels (${this.channelCount}).`
           );
         }
-      }
-
-      // Flatten the 2D array
-      flatData = [];
-      for (const sample of x2d) {
-        flatData.push(...sample);
+        flatData.push(...(sample as any[]));
       }
     } else {
-      // 1D flattened array: values are multiplexed
+      // 1D array: flattened data
       flatData = x as any[];
-      
-      // Verify the array length is a multiple of channel count
       if (flatData.length % this.channelCount !== 0) {
         throw new Error(
-          `Flattened array length (${flatData.length}) must be a multiple of channel count (${this.channelCount}).`
+          `Data length must be a multiple of channel count (${this.channelCount}).`
         );
       }
-      
       numSamples = flatData.length / this.channelCount;
     }
-
-    const pusht = pushthrough ? 1 : 0;
-    let result: number;
-    const dataElements = numSamples * this.channelCount;
-
-    if (Array.isArray(timestamp)) {
-      // Multiple timestamps provided
-      if (timestamp.length !== numSamples) {
-        throw new Error(
-          `Number of timestamps (${timestamp.length}) must match number of samples (${numSamples}).`
-        );
-      }
-
-      const timestampBuffer = new Float64Array(timestamp);
-
-      switch (this.channelFormat) {
-        case 1: // cfFloat32
-          const floatBuffer = new Float32Array(flatData);
-          result = lsl_push_chunk_ftnp(this.handle, floatBuffer, dataElements, timestampBuffer, pusht);
-          break;
-        case 2: // cfDouble64
-          const doubleBuffer = new Float64Array(flatData);
-          result = lsl_push_chunk_dtnp(this.handle, doubleBuffer, dataElements, timestampBuffer, pusht);
-          break;
-        case 3: // cfString
-          const stringBuffers = flatData.map(s => Buffer.from(String(s) + '\0', 'utf8'));
-          result = lsl_push_chunk_strtnp(this.handle, stringBuffers, dataElements, timestampBuffer, pusht);
-          break;
-        case 4: // cfInt32
-          const int32Buffer = new Int32Array(flatData);
-          result = lsl_push_chunk_itnp(this.handle, int32Buffer, dataElements, timestampBuffer, pusht);
-          break;
-        case 5: // cfInt16
-          const int16Buffer = new Int16Array(flatData);
-          result = lsl_push_chunk_stnp(this.handle, int16Buffer, dataElements, timestampBuffer, pusht);
-          break;
-        case 6: // cfInt8
-          const int8Buffer = new Int8Array(flatData);
-          result = lsl_push_chunk_ctnp(this.handle, int8Buffer, dataElements, timestampBuffer, pusht);
-          break;
-        case 7: // cfInt64
-          const int64Buffer = new BigInt64Array(flatData.map(v => BigInt(v)));
-          result = lsl_push_chunk_ltnp(this.handle, int64Buffer, dataElements, timestampBuffer, pusht);
-          break;
-        default:
-          throw new Error(`Unsupported channel format: ${this.channelFormat}`);
-      }
-    } else {
-      // Single timestamp for all samples
-      switch (this.channelFormat) {
-        case 1: // cfFloat32
-          const floatBuffer = new Float32Array(flatData);
-          result = lsl_push_chunk_ftp(this.handle, floatBuffer, dataElements, timestamp, pusht);
-          break;
-        case 2: // cfDouble64
-          const doubleBuffer = new Float64Array(flatData);
-          result = lsl_push_chunk_dtp(this.handle, doubleBuffer, dataElements, timestamp, pusht);
-          break;
-        case 3: // cfString
-          const stringBuffers2 = flatData.map(s => Buffer.from(String(s) + '\0', 'utf8'));
-          result = lsl_push_chunk_strtp(this.handle, stringBuffers2, dataElements, timestamp, pusht);
-          break;
-        case 4: // cfInt32
-          const int32Buffer = new Int32Array(flatData);
-          result = lsl_push_chunk_itp(this.handle, int32Buffer, dataElements, timestamp, pusht);
-          break;
-        case 5: // cfInt16
-          const int16Buffer = new Int16Array(flatData);
-          result = lsl_push_chunk_stp(this.handle, int16Buffer, dataElements, timestamp, pusht);
-          break;
-        case 6: // cfInt8
-          const int8Buffer = new Int8Array(flatData);
-          result = lsl_push_chunk_ctp(this.handle, int8Buffer, dataElements, timestamp, pusht);
-          break;
-        case 7: // cfInt64
-          const int64Buffer = new BigInt64Array(flatData.map(v => BigInt(v)));
-          result = lsl_push_chunk_ltp(this.handle, int64Buffer, dataElements, timestamp, pusht);
-          break;
-        default:
-          throw new Error(`Unsupported channel format: ${this.channelFormat}`);
-      }
+    
+    // Validate timestamp array length if multiple timestamps
+    if (hasMultipleTimestamps && (timestamp as number[]).length !== numSamples) {
+      throw new Error(
+        `Timestamp array length (${(timestamp as number[]).length}) must match number of samples (${numSamples}).`
+      );
     }
-
+    
+    // Convert the data to appropriate format
+    let dataBuffer: any;
+    
+    if (this.channelFormat === cf_string) {
+      // For string channels, create string pointer array
+      const strings = flatData.map(v => String(v));
+      dataBuffer = strings;
+    } else {
+      // For numeric channels, create appropriate typed array
+      let TypedArray: any;
+      switch (this.channelFormat) {
+        case 1: // cf_float32
+          TypedArray = Float32Array;
+          break;
+        case 2: // cf_double64
+          TypedArray = Float64Array;
+          break;
+        case 4: // cf_int32
+          TypedArray = Int32Array;
+          break;
+        case 5: // cf_int16
+          TypedArray = Int16Array;
+          break;
+        case 6: // cf_int8
+          TypedArray = Int8Array;
+          break;
+        default:
+          throw new Error(`Unsupported channel format: ${this.channelFormat}`);
+      }
+      dataBuffer = new TypedArray(flatData);
+    }
+    
+    // Prepare timestamp parameter
+    let timestampParam: any;
+    if (hasMultipleTimestamps) {
+      timestampParam = new Float64Array(timestamp as number[]);
+    } else {
+      timestampParam = timestamp as number;
+    }
+    
+    // Push the chunk
+    const result = pushFunc(
+      this.obj,
+      dataBuffer,
+      flatData.length,
+      timestampParam,
+      pushthrough ? 1 : 0
+    );
+    
     handleError(result);
   }
-
-  /**
-   * Check whether consumers are currently registered.
-   * 
-   * @returns True if the outlet currently has consumers, false otherwise.
-   */
+  
   haveConsumers(): boolean {
-    return lsl_have_consumers(this.handle) !== 0;
+    return Boolean(lsl_have_consumers(this.obj));
   }
-
-  /**
-   * Wait until some consumer shows up (without wasting resources).
-   * 
-   * @param timeout - Timeout for the operation in seconds. Use FOREVER to wait indefinitely.
-   * @returns True if consumers showed up before the timeout, false if timeout expired.
-   */
+  
   waitForConsumers(timeout: number): boolean {
-    return lsl_wait_for_consumers(this.handle, timeout) !== 0;
+    return Boolean(lsl_wait_for_consumers(this.obj, timeout));
   }
-
-  /**
-   * Retrieve the stream info provided by this outlet.
-   * 
-   * @returns The stream information of the outlet.
-   */
+  
   getInfo(): StreamInfo {
-    const handle = lsl_get_info_from_outlet(this.handle);
-    return new StreamInfo('', '', 0, 0, 0, '', handle);
+    const infoHandle = lsl_get_info(this.obj);
+    return new StreamInfo('', '', 0, 0, 0, '', infoHandle);
   }
 }

@@ -1,24 +1,17 @@
-# node-lsl
+# Node-LSL
 
-Modern Lab Streaming Layer (LSL) bindings for Node.js
-
-## Overview
-
-node-lsl provides Node.js bindings for the Lab Streaming Layer (LSL) library, enabling real-time streaming of time series data over a local network. This package is designed to be compatible with the Python pylsl library while following JavaScript/TypeScript conventions.
+Node.js bindings for Lab Streaming Layer (LSL) - A system for unified collection of measurement time series in research experiments.
 
 ## Features
 
-- Complete LSL API implementation
-- TypeScript support with full type definitions
-- Cross-platform support (Windows, macOS, Linux)
-- Compatible with pylsl API design
-- High-performance FFI bindings using Koffi
-- Support for all LSL data types (float32, double64, string, int32, int16, int8, int64)
-
-## Requirements
-
-- Node.js >= 18.0.0
-- LSL library installed on your system (or use the included prebuilt binaries)
+- 🚀 High-performance FFI bindings using Koffi (faster than node-ffi-napi)
+- 📊 Support for all LSL data types (float32, double64, int8/16/32/64, string)
+- 🔄 Real-time data streaming with sub-millisecond precision
+- 🔍 Stream discovery and resolution
+- ⏱️ Built-in time synchronization
+- 📝 Full metadata support via XML
+- 💻 Cross-platform (Windows, Linux, macOS)
+- 📦 TypeScript support with full type definitions
 
 ## Installation
 
@@ -28,182 +21,155 @@ npm install node-lsl
 
 ## Quick Start
 
-### Creating a Stream Outlet (Sender)
+### Sending Data
 
 ```javascript
-const lsl = require('node-lsl');
+import { StreamInfo, StreamOutlet } from 'node-lsl';
 
 // Create stream info
-const info = new lsl.StreamInfo(
-  'MyStream',        // Stream name
-  'EEG',            // Stream type
-  8,                // Number of channels
-  100,              // Sampling rate (Hz)
-  lsl.cfFloat32,    // Data type
-  'myuid34234'      // Source ID
-);
+const info = new StreamInfo('MyStream', 'EEG', 8, 100, 'float32', 'uniqueid123');
 
-// Create outlet
-const outlet = new lsl.StreamOutlet(info);
+// Create outlet and start streaming
+const outlet = new StreamOutlet(info);
 
-// Push samples
+// Send data
 const sample = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
 outlet.pushSample(sample);
-
-// Push multiple samples at once
-const samples = [
-  [1, 2, 3, 4, 5, 6, 7, 8],
-  [2, 3, 4, 5, 6, 7, 8, 9],
-  [3, 4, 5, 6, 7, 8, 9, 10]
-];
-outlet.pushChunk(samples);
 ```
 
-### Creating a Stream Inlet (Receiver)
+### Receiving Data
 
 ```javascript
-const lsl = require('node-lsl');
+import { resolveStreams, StreamInlet } from 'node-lsl';
 
-// Resolve streams of a specific type
-const streams = lsl.resolveByProp('type', 'EEG', 1, 10.0);
+// Find available streams
+const streams = resolveStreams();
 
 if (streams.length > 0) {
-  // Create inlet
-  const inlet = new lsl.StreamInlet(streams[0]);
+  // Connect to first stream
+  const inlet = new StreamInlet(streams[0]);
   
-  // Pull samples
+  // Receive data
   const [sample, timestamp] = inlet.pullSample();
-  if (sample) {
-    console.log('Received sample:', sample, 'at time:', timestamp);
-  }
-  
-  // Pull multiple samples
-  const [samples, timestamps] = inlet.pullChunk();
-  console.log('Received', samples.length, 'samples');
+  console.log('Received:', sample, 'at', timestamp);
 }
-```
-
-### Resolving Streams
-
-```javascript
-// Resolve all available streams
-const allStreams = lsl.resolveStreams(5.0);  // 5 second timeout
-
-// Resolve by property
-const eegStreams = lsl.resolveByProp('type', 'EEG');
-
-// Resolve by predicate (XPath)
-const highRateStreams = lsl.resolveByPred("nominal_srate>100");
-
-// Continuous resolver
-const resolver = new lsl.ContinuousResolver('type', 'EEG');
-// ... later ...
-const currentStreams = resolver.results();
 ```
 
 ## API Reference
 
 ### Core Classes
 
-- **StreamInfo**: Represents stream metadata
-- **StreamOutlet**: Used to broadcast data streams
-- **StreamInlet**: Used to receive data streams
-- **ContinuousResolver**: Continuously resolves streams in the background
-- **XMLElement**: Manipulates stream descriptions
+#### StreamInfo
+Stores the declaration of a data stream.
 
-### Resolver Functions
+```javascript
+const info = new StreamInfo(
+  name,           // Stream name
+  type,           // Content type (e.g., 'EEG', 'Markers')
+  channelCount,   // Number of channels
+  nominalSrate,   // Sampling rate (Hz) or IRREGULAR_RATE
+  channelFormat,  // Data type: 'float32', 'double64', 'string', etc.
+  sourceId        // Unique source identifier (optional)
+);
+```
 
-- `resolveStreams(waitTime)`: Resolve all streams on the network
-- `resolveByProp(prop, value, minimum, timeout)`: Resolve streams by property
-- `resolveByPred(predicate, minimum, timeout)`: Resolve streams by XPath predicate
-- `resolveStream(...args)`: Polymorphic resolver function
+#### StreamOutlet
+Makes streaming data available on the network.
+
+```javascript
+const outlet = new StreamOutlet(info, chunkSize?, maxBuffered?);
+outlet.pushSample(sample, timestamp?, pushthrough?);
+outlet.pushChunk(samples, timestamp?, pushthrough?);
+outlet.haveConsumers();
+outlet.waitForConsumers(timeout);
+```
+
+#### StreamInlet
+Receives streaming data from the network.
+
+```javascript
+const inlet = new StreamInlet(info, maxBuflen?, maxChunklen?, recover?, processingFlags?);
+const [sample, timestamp] = inlet.pullSample(timeout?);
+const [samples, timestamps] = inlet.pullChunk(timeout?, maxSamples?);
+inlet.timeCorrection(timeout?);
+inlet.openStream(timeout?);
+inlet.closeStream();
+```
+
+### Stream Discovery
+
+```javascript
+// Find all streams
+const streams = resolveStreams(waitTime?);
+
+// Find by property
+const eegStreams = resolveByProp('type', 'EEG');
+
+// Find by predicate (XPath)
+const filtered = resolveByPred("name='MyStream' and type='EEG'");
+
+// Continuous resolution
+const resolver = new ContinuousResolver();
+const currentStreams = resolver.results();
+```
 
 ### Constants
 
-#### Data Types
-- `cfFloat32`: 32-bit float
-- `cfDouble64`: 64-bit double
-- `cfString`: String
-- `cfInt32`: 32-bit integer
-- `cfInt16`: 16-bit integer
-- `cfInt8`: 8-bit integer
-- `cfInt64`: 64-bit integer
-
-#### Processing Flags
-- `procNone`: No automatic post-processing
-- `procClocksync`: Perform automatic clock synchronization
-- `procDejitter`: Remove jitter from time stamps
-- `procMonotonize`: Force time-stamps to be monotonically ascending
-- `procThreadsafe`: Post-processing is thread-safe
-- `procAll`: All processing flags combined
-
-#### Time Constants
-- `IRREGULAR_RATE`: 0.0 - Indicates variable sampling rate
-- `DEDUCED_TIMESTAMP`: -1.0 - Use implicit timestamps
-- `FOREVER`: 32000000.0 - Infinite timeout
-
-### Utility Functions
-
-- `protocolVersion()`: Get LSL protocol version
-- `libraryVersion()`: Get LSL library version
-- `libraryInfo()`: Get library information string
-- `localClock()`: Get local system timestamp
-
-## Platform Support
-
-The package includes prebuilt binaries for:
-- Windows (x64, x86)
-- macOS (x64, arm64) - requires LSL library installation
-- Linux (x64, x86) - requires LSL library installation
-
-For macOS and Linux, you can install the LSL library using:
-- macOS: `brew install labstreaminglayer/tap/lsl`
-- Linux: Build from source or use your package manager
-
-## Environment Variables
-
-- `LSL_LIB` or `PYLSL_LIB`: Path to the LSL library file
-
-## TypeScript Support
-
-This package includes TypeScript definitions. Simply import the package in your TypeScript project:
-
-```typescript
-import * as lsl from 'node-lsl';
-// or
-import { StreamInfo, StreamOutlet, StreamInlet } from 'node-lsl';
+```javascript
+import { 
+  IRREGULAR_RATE,  // 0.0 - for irregular sampling
+  FOREVER,         // 32000000.0 - for infinite timeout
+  proc_clocksync,  // Clock synchronization flag
+  proc_dejitter,   // Dejitter timestamps flag
+  proc_ALL        // All processing flags
+} from 'node-lsl';
 ```
-
-## Differences from pylsl
-
-While node-lsl aims to be compatible with pylsl, there are some differences:
-
-1. **Naming conventions**: Uses camelCase instead of snake_case (e.g., `pushSample` vs `push_sample`)
-2. **Async patterns**: JavaScript's event-driven nature may require different patterns for real-time streaming
-3. **Buffer handling**: Uses TypedArrays instead of NumPy arrays
 
 ## Examples
 
-Check the `examples/` directory for more detailed examples including:
-- EEG streaming
-- Marker streaming
-- Multi-stream synchronization
-- Real-time visualization
+The package includes several example scripts in the `src/examples` directory:
+
+- `SendData.ts` - Stream multi-channel data
+- `ReceiveData.ts` - Receive and display data
+- `SendStringMarkers.ts` - Send event markers
+- `ReceiveStringMarkers.ts` - Receive event markers
+- `HandleMetadata.ts` - Work with stream metadata
+
+Run examples after building:
+```bash
+npm run build
+node dist/examples/SendData.js
+```
+
+## Building from Source
+
+```bash
+# Install dependencies
+npm install
+
+# Build TypeScript
+npm run build
+
+# Run tests
+npm test
+```
+
+## Platform Support
+
+- **Windows**: x64 and x86 (uses `lsl_amd64.dll` or `lsl_i386.dll`)
+- **Linux**: x64 (uses `lsl.so`)
+- **macOS**: x64 and ARM64 (uses `lsl.dylib`)
+
+## License
+
+MIT
+
+## Credits
+
+This package provides Node.js bindings for the Lab Streaming Layer (LSL) library.
+- LSL: https://github.com/sccn/labstreaminglayer
+- Uses Koffi for FFI: https://koffi.dev/
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Resources
-
-- [Lab Streaming Layer Documentation](https://labstreaminglayer.readthedocs.io/)
-- [LSL GitHub Repository](https://github.com/sccn/labstreaminglayer)
-- [pylsl Python Library](https://github.com/labstreaminglayer/pylsl)
-
-## Support
-
-For issues and questions, please use the [GitHub issue tracker](https://github.com/EdgeBCI/node-lsl/issues).

@@ -1,146 +1,53 @@
-/**
- * node-lsl: Lab Streaming Layer (LSL) bindings for Node.js
- * 
- * This module provides Node.js bindings for the Lab Streaming Layer (LSL) library,
- * enabling real-time streaming of time series data over a local network.
- */
+// Main exports for node-lsl package
 
-// Export all utility functions and constants
+// Core classes
+export { StreamInfo, XMLElement } from './streamInfo.js';
+export { StreamOutlet } from './outlet.js';
+export { StreamInlet } from './inlet.js';
+
+// Resolver functions and classes
 export {
-  // Constants
+  resolveStreams,
+  resolveByProp,
+  resolveByPred,
+  resolveStream,
+  ContinuousResolver
+} from './resolver.js';
+
+// Constants and utilities
+export {
   IRREGULAR_RATE,
   DEDUCED_TIMESTAMP,
   FOREVER,
-  // Processing flags
-  procNone,
-  procClocksync,
-  procDejitter,
-  procMonotonize,
-  procThreadsafe,
-  procAll,
-  // Channel formats
-  cfFloat32,
-  cfDouble64,
-  cfString,
-  cfInt32,
-  cfInt16,
-  cfInt8,
-  cfInt64,
-  cfUndefined,
-  // Utility functions
+  proc_none,
+  proc_clocksync,
+  proc_dejitter,
+  proc_monotonize,
+  proc_threadsafe,
+  proc_ALL,
   protocolVersion,
   libraryVersion,
   libraryInfo,
   localClock,
-  // Error classes
   TimeoutError,
   LostError,
   InvalidArgumentError,
-  InternalError,
-  // Helper functions
-  handleError,
+  InternalError
+} from './util.js';
+
+// Channel format constants
+export {
+  cf_float32,
+  cf_double64,
+  cf_string,
+  cf_int32,
+  cf_int16,
+  cf_int8,
+  cf_int64,
+  cf_undefined,
   string2fmt,
-  fmt2string,
-} from './util';
+  fmt2string
+} from './lib/index.js';
 
-// Export StreamInfo and XMLElement classes
-export { StreamInfo, XMLElement } from './info';
-
-// Export StreamOutlet class
-export { StreamOutlet } from './outlet';
-
-// Export StreamInlet class
-export { StreamInlet } from './inlet';
-
-// Export resolver functions and ContinuousResolver class
-export {
-  resolveStreams,
-  resolveByProp,
-  resolveByPred,
-  resolveStream,
-  ContinuousResolver,
-} from './resolver';
-
-// Import all modules for default export
-import { StreamInfo, XMLElement } from './info';
-import { StreamOutlet } from './outlet';
-import { StreamInlet } from './inlet';
-import {
-  resolveStreams,
-  resolveByProp,
-  resolveByPred,
-  resolveStream,
-  ContinuousResolver,
-} from './resolver';
-import {
-  IRREGULAR_RATE,
-  DEDUCED_TIMESTAMP,
-  FOREVER,
-  procNone,
-  procClocksync,
-  procDejitter,
-  procMonotonize,
-  procThreadsafe,
-  procAll,
-  cfFloat32,
-  cfDouble64,
-  cfString,
-  cfInt32,
-  cfInt16,
-  cfInt8,
-  cfInt64,
-  cfUndefined,
-  protocolVersion,
-  libraryVersion,
-  libraryInfo,
-  localClock,
-  TimeoutError,
-  LostError,
-  InvalidArgumentError,
-  InternalError,
-} from './util';
-
-// Default export with all exports for convenience
-export default {
-  // Classes
-  StreamInfo,
-  XMLElement,
-  StreamOutlet,
-  StreamInlet,
-  ContinuousResolver,
-  // Resolver functions
-  resolveStreams,
-  resolveByProp,
-  resolveByPred,
-  resolveStream,
-  // Constants
-  IRREGULAR_RATE,
-  DEDUCED_TIMESTAMP,
-  FOREVER,
-  // Processing flags
-  procNone,
-  procClocksync,
-  procDejitter,
-  procMonotonize,
-  procThreadsafe,
-  procAll,
-  // Channel formats
-  cfFloat32,
-  cfDouble64,
-  cfString,
-  cfInt32,
-  cfInt16,
-  cfInt8,
-  cfInt64,
-  cfUndefined,
-  // Utility functions
-  protocolVersion,
-  libraryVersion,
-  libraryInfo,
-  localClock,
-  // Error classes
-  TimeoutError,
-  LostError,
-  InvalidArgumentError,
-  InternalError,
-};
+// Type exports
+export type { ChannelFormat } from './lib/index.js';

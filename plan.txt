@@ -1,0 +1,331 @@
+# NODE-LSL IMPLEMENTATION PLAN
+# Based on PyLSL Python Implementation Analysis
+
+## PROJECT STRUCTURE
+
+node-lsl/
+├── package.json
+├── tsconfig.json
+├── src/
+│   ├── index.ts         # Main exports
+│   ├── streamInfo.ts    # StreamInfo and XMLElement classes
+│   ├── outlet.ts        # StreamOutlet class
+│   ├── inlet.ts         # StreamInlet class
+│   ├── resolver.ts      # Resolver functions and ContinuousResolver
+│   ├── util.ts          # Utility functions and constants
+│   └── lib/
+│       └── index.ts     # Koffi FFI bindings to liblsl
+├── prebuild/
+│   ├── lsl.dll          # Windows x64
+│   ├── lsl.so           # Linux
+│   └── lsl.dylib        # macOS
+├── examples/            # JavaScript examples matching pylsl
+└── test/               # Unit tests
+
+## DETAILED IMPLEMENTATION SPECIFICATIONS
+
+### 1. lib/index.ts - Core FFI Bindings Using Koffi
+
+#### Channel Format Constants
+- cf_float32 = 1
+- cf_double64 = 2
+- cf_string = 3
+- cf_int32 = 4
+- cf_int16 = 5
+- cf_int8 = 6
+- cf_int64 = 7
+- cf_undefined = 0
+
+#### Core C Function Bindings (using Koffi)
+- lsl_create_streaminfo(name, type, channel_count, nominal_srate, channel_format, source_id) -> void*
+- lsl_destroy_streaminfo(info) -> void
+- lsl_get_name(info) -> char*
+- lsl_get_type(info) -> char*
+- lsl_get_channel_count(info) -> int
+- lsl_get_nominal_srate(info) -> double
+- lsl_get_channel_format(info) -> int
+- lsl_get_source_id(info) -> char*
+- lsl_get_version(info) -> int
+- lsl_get_created_at(info) -> double
+- lsl_get_uid(info) -> char*
+- lsl_get_session_id(info) -> char*
+- lsl_get_hostname(info) -> char*
+- lsl_get_desc(info) -> void*
+- lsl_get_xml(info) -> char*
+- lsl_create_outlet(info, chunk_size, max_buffered) -> void*
+- lsl_destroy_outlet(outlet) -> void
+- lsl_push_sample_[type](outlet, sample, timestamp, pushthrough) -> int
+- lsl_push_chunk_[type](outlet, samples, lengths, timestamp, pushthrough) -> int
+- lsl_have_consumers(outlet) -> int
+- lsl_wait_for_consumers(outlet, timeout) -> int
+- lsl_get_info(outlet) -> void*
+- lsl_create_inlet(info, max_buflen, max_chunklen, recover) -> void*
+- lsl_destroy_inlet(inlet) -> void
+- lsl_get_fullinfo(inlet, timeout, errcode) -> void*
+- lsl_open_stream(inlet, timeout, errcode) -> void
+- lsl_close_stream(inlet) -> void
+- lsl_time_correction(inlet, timeout, errcode) -> double
+- lsl_pull_sample_[type](inlet, sample, buffer_elements, timeout, errcode) -> double
+- lsl_pull_chunk_[type](inlet, data_buffer, timestamp_buffer, data_buffer_elements, timestamp_buffer_elements, timeout, errcode) -> long
+- lsl_samples_available(inlet) -> int
+- lsl_inlet_flush(inlet) -> int
+- lsl_was_clock_reset(inlet) -> int
+- lsl_set_postprocessing(inlet, flags) -> int
+- lsl_resolve_all(buffer, buffer_elements, wait_time) -> int
+- lsl_resolve_byprop(buffer, buffer_elements, prop, value, minimum, timeout) -> int
+- lsl_resolve_bypred(buffer, buffer_elements, predicate, minimum, timeout) -> int
+- lsl_create_continuous_resolver(forget_after) -> void*
+- lsl_create_continuous_resolver_byprop(prop, value, forget_after) -> void*
+- lsl_create_continuous_resolver_bypred(predicate, forget_after) -> void*
+- lsl_destroy_continuous_resolver(resolver) -> void
+- lsl_resolver_results(resolver, buffer, buffer_elements) -> int
+- lsl_local_clock() -> double
+- lsl_protocol_version() -> int
+- lsl_library_version() -> int
+- lsl_library_info() -> char*
+- lsl_destroy_string(str) -> void
+
+#### XML Element Functions
+- lsl_first_child(e) -> void*
+- lsl_last_child(e) -> void*
+- lsl_next_sibling(e) -> void*
+- lsl_next_sibling_n(e, name) -> void*
+- lsl_previous_sibling(e) -> void*
+- lsl_previous_sibling_n(e, name) -> void*
+- lsl_parent(e) -> void*
+- lsl_child(e, name) -> void*
+- lsl_empty(e) -> int
+- lsl_is_text(e) -> int
+- lsl_name(e) -> char*
+- lsl_value(e) -> char*
+- lsl_child_value(e) -> char*
+- lsl_child_value_n(e, name) -> char*
+- lsl_append_child_value(e, name, value) -> void*
+- lsl_prepend_child_value(e, name, value) -> void*
+- lsl_set_child_value(e, name, value) -> int
+- lsl_set_name(e, name) -> int
+- lsl_set_value(e, value) -> int
+- lsl_append_child(e, name) -> void*
+- lsl_prepend_child(e, name) -> void*
+- lsl_append_copy(e, target) -> void*
+- lsl_prepend_copy(e, target) -> void*
+- lsl_remove_child(e, target) -> void
+- lsl_remove_child_n(e, name) -> void
+
+### 2. streamInfo.ts - StreamInfo and XMLElement Classes
+
+#### StreamInfo Class
+Constructor:
+- constructor(name: string = "untitled", type: string = "", channelCount: number = 1, nominalSrate: number = IRREGULAR_RATE, channelFormat: number | string = cf_float32, sourceId?: string | null, handle?: any)
+
+Methods:
+- name(): string
+- type(): string
+- channelCount(): number
+- nominalSrate(): number
+- channelFormat(): number
+- sourceId(): string
+- version(): number
+- createdAt(): number
+- uid(): string
+- sessionId(): string
+- hostname(): string
+- desc(): XMLElement
+- asXml(): string
+- getChannelLabels(): string[] | null
+- getChannelTypes(): string[] | null
+- getChannelUnits(): string[] | null
+- setChannelLabels(labels: string[]): void
+- setChannelTypes(types: string | string[]): void
+- setChannelUnits(units: string | number | (string | number)[]): void
+
+#### XMLElement Class
+Constructor:
+- constructor(handle: any)
+
+Methods:
+- firstChild(): XMLElement
+- lastChild(): XMLElement
+- child(name: string): XMLElement
+- nextSibling(name?: string): XMLElement
+- previousSibling(name?: string): XMLElement
+- parent(): XMLElement
+- empty(): boolean
+- isText(): boolean
+- name(): string
+- value(): string
+- childValue(name?: string): string
+- appendChildValue(name: string, value: string): XMLElement
+- prependChildValue(name: string, value: string): XMLElement
+- setChildValue(name: string, value: string): XMLElement
+- setName(name: string): boolean
+- setValue(value: string): boolean
+- appendChild(name: string): XMLElement
+- prependChild(name: string): XMLElement
+- appendCopy(elem: XMLElement): XMLElement
+- prependCopy(elem: XMLElement): XMLElement
+- removeChild(rhs: XMLElement | string): void
+
+### 3. outlet.ts - StreamOutlet Class
+
+#### StreamOutlet Class
+Constructor:
+- constructor(info: StreamInfo, chunkSize: number = 0, maxBuffered: number = 360)
+
+Methods:
+- pushSample(x: any[], timestamp: number = 0.0, pushthrough: boolean = true): void
+- pushChunk(x: any[] | any[][], timestamp: number | number[] = 0.0, pushthrough: boolean = true): void
+- haveConsumers(): boolean
+- waitForConsumers(timeout: number): boolean
+- getInfo(): StreamInfo
+
+### 4. inlet.ts - StreamInlet Class
+
+#### StreamInlet Class
+Constructor:
+- constructor(info: StreamInfo, maxBuflen: number = 360, maxChunklen: number = 0, recover: boolean = true, processingFlags: number = 0)
+
+Methods:
+- info(timeout: number = FOREVER): StreamInfo
+- openStream(timeout: number = FOREVER): void
+- closeStream(): void
+- timeCorrection(timeout: number = FOREVER): number
+- pullSample(timeout: number = FOREVER, sample?: any): [any[], number] | [null, null]
+- pullChunk(timeout: number = 0.0, maxSamples: number = 1024, destObj?: any): [any[][], number[]]
+- samplesAvailable(): number
+- flush(): number
+- wasClockReset(): boolean
+
+### 5. resolver.ts - Resolver Functions and Classes
+
+#### Functions
+- resolveStreams(waitTime: number = 1.0): StreamInfo[]
+- resolveByProp(prop: string, value: string, minimum: number = 1, timeout: number = FOREVER): StreamInfo[]
+- resolveByPred(predicate: string, minimum: number = 1, timeout: number = FOREVER): StreamInfo[]
+- resolveStream(...args: any[]): StreamInfo[] (legacy compatibility function)
+
+#### ContinuousResolver Class
+Constructor:
+- constructor(prop?: string, value?: string, pred?: string, forgetAfter: number = 5.0)
+
+Methods:
+- results(): StreamInfo[]
+
+### 6. util.ts - Utility Functions and Constants
+
+#### Constants
+- IRREGULAR_RATE = 0.0
+- DEDUCED_TIMESTAMP = -1.0
+- FOREVER = 32000000.0
+- proc_none = 0
+- proc_clocksync = 1
+- proc_dejitter = 2
+- proc_monotonize = 4
+- proc_threadsafe = 8
+- proc_ALL = proc_none | proc_clocksync | proc_dejitter | proc_monotonize | proc_threadsafe
+
+#### Functions
+- protocolVersion(): number
+- libraryVersion(): number
+- libraryInfo(): string
+- localClock(): number
+- handleError(errcode: number): void
+
+#### Error Classes
+- TimeoutError extends Error
+- LostError extends Error
+- InvalidArgumentError extends Error
+- InternalError extends Error
+
+#### Type Mappings
+- string2fmt: { [key: string]: number }
+  - "float32": cf_float32
+  - "double64": cf_double64
+  - "string": cf_string
+  - "int32": cf_int32
+  - "int16": cf_int16
+  - "int8": cf_int8
+  - "int64": cf_int64
+
+- fmt2string: string[]
+  - ["undefined", "float32", "double64", "string", "int32", "int16", "int8", "int64"]
+
+### 7. index.ts - Main Exports
+
+Export all public APIs:
+```typescript
+export { StreamInfo, XMLElement } from './streamInfo';
+export { StreamOutlet } from './outlet';
+export { StreamInlet } from './inlet';
+export { resolveStreams, resolveByProp, resolveByPred, ContinuousResolver } from './resolver';
+export {
+  IRREGULAR_RATE,
+  FOREVER,
+  proc_none,
+  proc_clocksync,
+  proc_dejitter,
+  proc_monotonize,
+  proc_threadsafe,
+  proc_ALL,
+  protocolVersion,
+  libraryVersion,
+  libraryInfo,
+  localClock
+} from './util';
+export {
+  cf_float32,
+  cf_double64,
+  cf_string,
+  cf_int32,
+  cf_int16,
+  cf_int8,
+  cf_int64
+} from './lib';
+```
+
+## IMPLEMENTATION NOTES
+
+1. **Naming Convention**: Convert Python snake_case to JavaScript camelCase
+   - Python: push_sample -> JavaScript: pushSample
+   - Python: channel_count -> JavaScript: channelCount
+
+2. **Parameter Count**: Maintain the same number of parameters as pylsl
+
+3. **Type Safety**: Use TypeScript for type definitions
+
+4. **Memory Management**: 
+   - Use Koffi's automatic memory management
+   - Implement proper cleanup in destructors
+   - Handle pointers correctly with Koffi
+
+5. **Error Handling**:
+   - Convert C error codes to JavaScript exceptions
+   - Use custom error classes matching pylsl
+
+6. **Performance**:
+   - Use TypedArrays for efficient data transfer
+   - Support async operations where applicable
+   - Minimize data copying
+
+7. **Platform Support**:
+   - Windows: Load lsl.dll
+   - Linux: Load lsl.so
+   - macOS: Load lsl.dylib
+
+8. **Dependencies**:
+   - koffi: For FFI bindings (faster than node-ffi-napi)
+   - No other runtime dependencies
+
+9. **Testing**:
+   - Unit tests for each class
+   - Integration tests with actual LSL streams
+   - Cross-platform testing
+
+10. **Examples**: Create JavaScript versions of all pylsl examples:
+    - SendData.js
+    - ReceiveData.js
+    - SendStringMarkers.js
+    - ReceiveStringMarkers.js
+    - GetTimeCorrection.js
+    - HandleMetadata.js
+    - etc.

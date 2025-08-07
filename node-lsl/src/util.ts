@@ -1,52 +1,29 @@
-import { lsl_protocol_version, lsl_library_version, lsl_library_info, lsl_local_clock } from './lib';
+import { 
+  lsl_protocol_version,
+  lsl_library_version,
+  lsl_library_info,
+  lsl_local_clock
+} from './lib/index.js';
 
-// Constants matching pylsl
+// Constant to indicate that a stream has variable sampling rate
 export const IRREGULAR_RATE = 0.0;
+
+// Constant to indicate that a sample has the next successive time stamp
+// according to the stream's defined sampling rate
 export const DEDUCED_TIMESTAMP = -1.0;
+
+// A very large time value (ca. 1 year); can be used in timeouts
 export const FOREVER = 32000000.0;
 
-// Processing flags for stream inlets (camelCase naming)
-export const procNone = 0;  // No automatic post-processing
-export const procClocksync = 1;  // Perform automatic clock synchronization
-export const procDejitter = 2;  // Remove jitter from time stamps
-export const procMonotonize = 4;  // Force time-stamps to be monotonically ascending
-export const procThreadsafe = 8;  // Post-processing is thread-safe
-export const procAll = procNone | procClocksync | procDejitter | procMonotonize | procThreadsafe;
+// Post processing flags
+export const proc_none = 0;  // No automatic post-processing
+export const proc_clocksync = 1;  // Perform automatic clock synchronization
+export const proc_dejitter = 2;  // Remove jitter from time stamps
+export const proc_monotonize = 4;  // Force time-stamps to be monotonically ascending
+export const proc_threadsafe = 8;  // Post-processing is thread-safe
+export const proc_ALL = proc_none | proc_clocksync | proc_dejitter | proc_monotonize | proc_threadsafe;
 
-// Channel format constants (camelCase naming)
-export const cfFloat32 = 1;
-export const cfDouble64 = 2;
-export const cfString = 3;
-export const cfInt32 = 4;
-export const cfInt16 = 5;
-export const cfInt8 = 6;
-export const cfInt64 = 7;
-export const cfUndefined = 0;
-
-// String to format mapping
-export const string2fmt: { [key: string]: number } = {
-  'float32': cfFloat32,
-  'double64': cfDouble64,
-  'string': cfString,
-  'int32': cfInt32,
-  'int16': cfInt16,
-  'int8': cfInt8,
-  'int64': cfInt64,
-};
-
-// Format to string mapping
-export const fmt2string: string[] = [
-  'undefined',
-  'float32',
-  'double64',
-  'string',
-  'int32',
-  'int16',
-  'int8',
-  'int64',
-];
-
-// Error classes matching pylsl
+// Error classes
 export class TimeoutError extends Error {
   constructor(message?: string) {
     super(message || 'The operation failed due to a timeout.');
@@ -76,18 +53,21 @@ export class InternalError extends Error {
 }
 
 // Error handler function
-export function handleError(errcode: number): void {
-  if (errcode === 0) {
-    return; // No error
-  } else if (errcode === -1) {
+export function handleError(errcode: number | { value: number }): void {
+  // Handle both number and object with value property
+  const code = typeof errcode === 'number' ? errcode : errcode.value;
+  
+  if (code === 0) {
+    return; // no error
+  } else if (code === -1) {
     throw new TimeoutError();
-  } else if (errcode === -2) {
+  } else if (code === -2) {
     throw new LostError();
-  } else if (errcode === -3) {
+  } else if (code === -3) {
     throw new InvalidArgumentError();
-  } else if (errcode === -4) {
+  } else if (code === -4) {
     throw new InternalError();
-  } else if (errcode < 0) {
+  } else if (code < 0) {
     throw new Error('An unknown error has occurred.');
   }
 }

@@ -1,45 +1,37 @@
 {
   "name": "node-lsl",
   "version": "2.0.0",
-  "description": "Modern Lab Streaming Layer (LSL) bindings for Node.js",
+  "description": "Node.js bindings for Lab Streaming Layer (LSL)",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "type": "module",
   "scripts": {
     "build": "tsc",
-    "watch": "tsc --watch",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "clean": "rimraf dist",
-    "prepare": "npm run build"
+    "test": "node --test dist/test",
+    "example:send": "node dist/examples/SendData.js",
+    "example:receive": "node dist/examples/ReceiveData.js"
   },
   "keywords": [
     "lsl",
     "lab-streaming-layer",
-    "data-streaming",
-    "real-time",
-    "neuroscience",
-    "biosignals",
     "eeg",
-    "emg"
+    "biosignals",
+    "streaming",
+    "real-time"
   ],
   "author": "",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/EdgeBCI/node-lsl"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "dependencies": {
-    "koffi": "^2.12.4"
+    "koffi": "^2.8.0"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.11",
-    "@types/node": "^20.11.0",
-    "jest": "^29.7.0",
-    "rimraf": "^5.0.5",
-    "ts-jest": "^29.1.1",
-    "typescript": "^5.3.3"
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/node-lsl.git"
   }
 }

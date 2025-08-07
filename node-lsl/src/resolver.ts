@@ -1,4 +1,3 @@
-import * as koffi from 'koffi';
 import {
   lsl_resolve_all,
   lsl_resolve_byprop,
@@ -7,231 +6,176 @@ import {
   lsl_create_continuous_resolver_byprop,
   lsl_create_continuous_resolver_bypred,
   lsl_destroy_continuous_resolver,
-  lsl_resolver_results,
-  lsl_copy_streaminfo,
-} from './lib';
-import { StreamInfo } from './info';
-import { FOREVER } from './util';
+  lsl_resolver_results
+} from './lib/index.js';
+import { StreamInfo } from './streamInfo.js';
+import { FOREVER } from './util.js';
 
-/**
- * Resolve all streams on the network.
- * This function returns all currently available streams from any outlet on the network.
- * 
- * @param waitTime - The timeout for the operation, in seconds. (default 1.0)
- * @returns An array of StreamInfo objects describing the available streams.
- */
 export function resolveStreams(waitTime: number = 1.0): StreamInfo[] {
-  const maxStreams = 1024;
-  const buffer = koffi.alloc('void*', maxStreams);
+  // Create buffer for stream info pointers
+  const bufferSize = 1024;
+  const buffer = new Array(bufferSize).fill(null);
   
-  const count = lsl_resolve_all(buffer, maxStreams, waitTime);
+  // Resolve streams
+  const numFound = lsl_resolve_all(buffer, bufferSize, waitTime);
   
-  const streams: StreamInfo[] = [];
-  const handles = koffi.decode(buffer, 'void**');
-  
-  for (let i = 0; i < count; i++) {
-    if (handles[i]) {
-      // Copy the handle to ensure it remains valid
-      const copiedHandle = lsl_copy_streaminfo(handles[i]);
-      streams.push(new StreamInfo('', '', 0, 0, 0, '', copiedHandle));
+  // Convert to StreamInfo objects
+  const results: StreamInfo[] = [];
+  for (let i = 0; i < numFound; i++) {
+    const handle = buffer[i];
+    if (handle) {
+      results.push(new StreamInfo('', '', 0, 0, 0, '', handle));
     }
   }
   
-  return streams;
+  return results;
 }
 
-/**
- * Resolve all streams with a specific value for a given property.
- * This function returns all streams that have a specific value for a given property.
- * 
- * @param prop - The property to match (e.g., "name", "type", "source_id").
- * @param value - The value that the property should have.
- * @param minimum - Minimum number of streams to return (waits until this many are found or timeout).
- * @param timeout - The timeout for the operation, in seconds. (default FOREVER)
- * @returns An array of StreamInfo objects describing the matching streams.
- */
 export function resolveByProp(
   prop: string,
   value: string,
   minimum: number = 1,
   timeout: number = FOREVER
 ): StreamInfo[] {
-  const maxStreams = 1024;
-  const buffer = koffi.alloc('void*', maxStreams);
+  // Create buffer for stream info pointers
+  const bufferSize = 1024;
+  const buffer = new Array(bufferSize).fill(null);
   
-  const count = lsl_resolve_byprop(buffer, maxStreams, prop, value, minimum, timeout);
+  // Resolve streams by property
+  const numFound = lsl_resolve_byprop(
+    buffer,
+    bufferSize,
+    prop,
+    value,
+    minimum,
+    timeout
+  );
   
-  const streams: StreamInfo[] = [];
-  const handles = koffi.decode(buffer, 'void**');
-  
-  for (let i = 0; i < count; i++) {
-    if (handles[i]) {
-      // Copy the handle to ensure it remains valid
-      const copiedHandle = lsl_copy_streaminfo(handles[i]);
-      streams.push(new StreamInfo('', '', 0, 0, 0, '', copiedHandle));
+  // Convert to StreamInfo objects
+  const results: StreamInfo[] = [];
+  for (let i = 0; i < numFound; i++) {
+    const handle = buffer[i];
+    if (handle) {
+      results.push(new StreamInfo('', '', 0, 0, 0, '', handle));
     }
   }
   
-  return streams;
+  return results;
 }
 
-/**
- * Resolve all streams that match a given predicate.
- * This function returns all streams for which the predicate evaluates to true.
- * 
- * @param predicate - A predicate string in XPath 1.0 format (e.g., "name='BioSemi'").
- * @param minimum - Minimum number of streams to return (waits until this many are found or timeout).
- * @param timeout - The timeout for the operation, in seconds. (default FOREVER)
- * @returns An array of StreamInfo objects describing the matching streams.
- */
 export function resolveByPred(
   predicate: string,
   minimum: number = 1,
   timeout: number = FOREVER
 ): StreamInfo[] {
-  const maxStreams = 1024;
-  const buffer = koffi.alloc('void*', maxStreams);
+  // Create buffer for stream info pointers
+  const bufferSize = 1024;
+  const buffer = new Array(bufferSize).fill(null);
   
-  const count = lsl_resolve_bypred(buffer, maxStreams, predicate, minimum, timeout);
+  // Resolve streams by predicate
+  const numFound = lsl_resolve_bypred(
+    buffer,
+    bufferSize,
+    predicate,
+    minimum,
+    timeout
+  );
   
-  const streams: StreamInfo[] = [];
-  const handles = koffi.decode(buffer, 'void**');
-  
-  for (let i = 0; i < count; i++) {
-    if (handles[i]) {
-      // Copy the handle to ensure it remains valid
-      const copiedHandle = lsl_copy_streaminfo(handles[i]);
-      streams.push(new StreamInfo('', '', 0, 0, 0, '', copiedHandle));
+  // Convert to StreamInfo objects
+  const results: StreamInfo[] = [];
+  for (let i = 0; i < numFound; i++) {
+    const handle = buffer[i];
+    if (handle) {
+      results.push(new StreamInfo('', '', 0, 0, 0, '', handle));
     }
   }
   
-  return streams;
+  return results;
 }
 
-/**
- * Polymorphic resolver function that can be called with different argument combinations.
- * 
- * @param args - Various argument combinations:
- *   - No arguments: resolve all streams with 1 second timeout
- *   - Single number: resolve all streams with specified timeout
- *   - Two strings: resolve by property and value
- *   - String and undefined: resolve by predicate
- * @returns An array of StreamInfo objects describing the matching streams.
- */
+// Legacy compatibility function
 export function resolveStream(...args: any[]): StreamInfo[] {
   if (args.length === 0) {
-    // No arguments: resolve all streams
     return resolveStreams();
   } else if (typeof args[0] === 'number') {
-    // Single number: resolve all with timeout
     return resolveStreams(args[0]);
   } else if (typeof args[0] === 'string') {
     if (args.length === 1) {
-      // Single string: resolve by predicate
       return resolveByPred(args[0]);
     } else if (typeof args[1] === 'number') {
-      // String + number: resolve by predicate with minimum
       return resolveByPred(args[0], args[1]);
     } else {
-      // String + string: resolve by property
       if (args.length === 2) {
         return resolveByProp(args[0], args[1]);
       } else {
-        // Property with minimum
         return resolveByProp(args[0], args[1], args[2]);
       }
     }
-  } else {
-    throw new Error('Invalid arguments for resolveStream');
   }
+  
+  throw new Error('Invalid arguments for resolveStream');
 }
 
-/**
- * A convenience class that resolves streams continuously in the background 
- * and can be queried at any time for the current results.
- */
 export class ContinuousResolver {
-  private handle: any;
-  private destroyed: boolean = false;
-
-  /**
-   * Construct a new continuous resolver.
-   * 
-   * @param prop - The property to match (e.g., "name", "type", "source_id"). 
-   *               Pass null to resolve all streams.
-   * @param value - The value that the property should have. 
-   *                Ignored if prop is null.
-   * @param pred - A predicate string in XPath 1.0 format. 
-   *               If specified, prop and value are ignored.
-   * @param forgetAfter - How long to remember streams after they disappear, in seconds. (default 5.0)
-   */
+  private obj: any; // Pointer to the continuous resolver object
+  
   constructor(
-    prop: string | null = null,
-    value: string | null = null,
-    pred: string | null = null,
+    prop?: string,
+    value?: string,
+    pred?: string,
     forgetAfter: number = 5.0
   ) {
-    if (pred !== null) {
-      if (prop !== null || value !== null) {
+    if (pred !== undefined) {
+      if (prop !== undefined || value !== undefined) {
         throw new Error(
           'You can only either pass the prop/value argument or the pred argument, but not both.'
         );
       }
-      // Use predicate-based resolver
-      this.handle = lsl_create_continuous_resolver_bypred(pred, forgetAfter);
-    } else if (prop !== null && value !== null) {
-      // Use property-based resolver
-      this.handle = lsl_create_continuous_resolver_byprop(prop, value, forgetAfter);
-    } else if (prop !== null || value !== null) {
+      this.obj = lsl_create_continuous_resolver_bypred(pred, forgetAfter);
+    } else if (prop !== undefined && value !== undefined) {
+      this.obj = lsl_create_continuous_resolver_byprop(prop, value, forgetAfter);
+    } else if (prop !== undefined || value !== undefined) {
       throw new Error(
-        'If prop is specified, then value must be specified, too, and vice versa.'
+        'If prop is specified, then value must be specified too, and vice versa.'
       );
     } else {
-      // Resolve all streams
-      this.handle = lsl_create_continuous_resolver(forgetAfter);
+      this.obj = lsl_create_continuous_resolver(forgetAfter);
     }
-
-    if (!this.handle) {
+    
+    if (!this.obj) {
       throw new Error('Could not create continuous resolver.');
     }
   }
-
-  /**
-   * Destroy the continuous resolver.
-   */
+  
+  // Destructor
   destroy(): void {
-    if (!this.destroyed && this.handle) {
+    if (this.obj) {
       try {
-        lsl_destroy_continuous_resolver(this.handle);
-        this.destroyed = true;
+        lsl_destroy_continuous_resolver(this.obj);
       } catch (e) {
-        console.error('ContinuousResolver deletion triggered error:', e);
+        // Silently ignore errors during destruction
       }
+      this.obj = null;
     }
   }
-
-  /**
-   * Get the current set of results.
-   * 
-   * @returns An array of StreamInfo objects describing the currently available streams.
-   */
+  
   results(): StreamInfo[] {
-    const maxStreams = 1024;
-    const buffer = koffi.alloc('void*', maxStreams);
+    // Create buffer for stream info pointers
+    const bufferSize = 1024;
+    const buffer = new Array(bufferSize).fill(null);
     
-    const count = lsl_resolver_results(this.handle, buffer, maxStreams);
+    // Get resolver results
+    const numFound = lsl_resolver_results(this.obj, buffer, bufferSize);
     
-    const streams: StreamInfo[] = [];
-    const handles = koffi.decode(buffer, 'void**');
-    
-    for (let i = 0; i < count; i++) {
-      if (handles[i]) {
-        // Copy the handle to ensure it remains valid
-        const copiedHandle = lsl_copy_streaminfo(handles[i]);
-        streams.push(new StreamInfo('', '', 0, 0, 0, '', copiedHandle));
+    // Convert to StreamInfo objects
+    const results: StreamInfo[] = [];
+    for (let i = 0; i < numFound; i++) {
+      const handle = buffer[i];
+      if (handle) {
+        results.push(new StreamInfo('', '', 0, 0, 0, '', handle));
       }
     }
     
-    return streams;
+    return results;
   }
 }

@@ -4,7 +4,10 @@
       "WebFetch(domain:labstreaminglayer.readthedocs.io)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:koffi.dev)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }
