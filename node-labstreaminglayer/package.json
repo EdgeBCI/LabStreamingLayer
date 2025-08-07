@@ -1,6 +1,6 @@
 {
   "name": "node-labstreaminglayer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Node.js bindings for Lab Streaming Layer (LSL)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
