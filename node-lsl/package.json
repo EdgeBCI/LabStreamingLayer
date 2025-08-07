@@ -30,7 +30,7 @@
     "bci",
     "brain-computer-interface"
   ],
-  "author": "",
+  "author": "Haowen Wei <hwjwei@mit.edu>",
   "license": "MIT",
   "dependencies": {
     "koffi": "^2.12.4"

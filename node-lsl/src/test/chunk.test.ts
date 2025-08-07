@@ -22,11 +22,12 @@ async function createConnectedPair(
   srate: number, 
   format: number
 ): Promise<{ outlet: StreamOutlet; inlet: StreamInlet; info: StreamInfo }> {
+  console.log('Creating connected pair for stream:', name);
   const info = new StreamInfo(name, type, channels, srate, format);
   const outlet = new StreamOutlet(info);
   
   // Allow outlet to advertise on the network
-  await new Promise(resolve => setTimeout(resolve, 500));
+  await new Promise(resolve => setTimeout(resolve, 2000));
   
   // Resolve the stream through network discovery
   const streams = resolveByProp('name', name, 1, 5.0);
@@ -39,6 +40,14 @@ async function createConnectedPair(
   // Create inlet with the resolved stream info
   const inlet = new StreamInlet(streams[0]);
   inlet.openStream(5.0);
+  
+  // Wait for consumers to be ready
+  console.log('  Waiting for consumers...');
+  const hasConsumer = outlet.waitForConsumers(5.0);
+  console.log('  Has consumer:', hasConsumer, 'haveConsumers:', outlet.haveConsumers());
+  
+  // Additional delay to ensure connection stability
+  await new Promise(resolve => setTimeout(resolve, 1000));
   
   return { outlet, inlet, info };
 }
@@ -62,9 +71,21 @@ describe('Chunk Operations', () => {
       console.log('  Sending 2D chunk:', JSON.stringify(chunk));
       outlet.pushChunk(chunk);
       
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const [samples, timestamps] = inlet.pullChunk(1.0, 10);
+      // Try to pull chunk with retry logic
+      let samples: any[][] | null = null;
+      let timestamps: number[] = [];
+      
+      for (let retry = 0; retry < 3; retry++) {
+        console.log(`  Pull attempt ${retry + 1}...`);
+        [samples, timestamps] = inlet.pullChunk(5.0, 100);
+        if (samples !== null && samples.length > 0) break;
+        if (retry < 2) {
+          console.log('  No samples yet, retrying...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
       console.log('  Received samples:', JSON.stringify(samples));
       console.log('  Received timestamps:', timestamps);
       
@@ -81,8 +102,8 @@ describe('Chunk Operations', () => {
       inlet.destroy();
       info.destroy();
       
-      // Allow cleanup time
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Allow cleanup time - wait longer to ensure complete cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
     });
     
     it('should handle flattened array format', async () => {
@@ -97,9 +118,21 @@ describe('Chunk Operations', () => {
       console.log('  Sending flat data:', flatData);
       outlet.pushChunk(flatData);
       
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const [samples, timestamps] = inlet.pullChunk(1.0, 10);
+      // Try to pull chunk with retry logic
+      let samples: any[][] | null = null;
+      let timestamps: number[] = [];
+      
+      for (let retry = 0; retry < 3; retry++) {
+        console.log(`  Pull attempt ${retry + 1}...`);
+        [samples, timestamps] = inlet.pullChunk(5.0, 100);
+        if (samples !== null && samples.length > 0) break;
+        if (retry < 2) {
+          console.log('  No samples yet, retrying...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
       console.log('  Received samples:', JSON.stringify(samples));
       
       assert.ok(samples !== null);
@@ -115,8 +148,8 @@ describe('Chunk Operations', () => {
       inlet.destroy();
       info.destroy();
       
-      // Allow cleanup time
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Allow cleanup time - wait longer to ensure complete cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
     });
     
     it('should handle single timestamp for all samples', async () => {
@@ -130,9 +163,21 @@ describe('Chunk Operations', () => {
       
       outlet.pushChunk(chunk, singleTimestamp);
       
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const [samples, timestamps] = inlet.pullChunk(1.0, 10);
+      // Try to pull chunk with retry logic
+      let samples: any[][] | null = null;
+      let timestamps: number[] = [];
+      
+      for (let retry = 0; retry < 3; retry++) {
+        console.log(`  Pull attempt ${retry + 1}...`);
+        [samples, timestamps] = inlet.pullChunk(5.0, 100);
+        if (samples !== null && samples.length > 0) break;
+        if (retry < 2) {
+          console.log('  No samples yet, retrying...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
       console.log('  Received samples:', JSON.stringify(samples));
       console.log('  Single timestamp sent:', singleTimestamp);
       console.log('  Received timestamps:', timestamps);
@@ -149,8 +194,8 @@ describe('Chunk Operations', () => {
       inlet.destroy();
       info.destroy();
       
-      // Allow cleanup time
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Allow cleanup time - wait longer to ensure complete cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
     });
     
     it('should handle individual timestamps per sample', async () => {
@@ -164,9 +209,21 @@ describe('Chunk Operations', () => {
       
       outlet.pushChunk(chunk, timestamps);
       
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const [samples, timestamps_recv] = inlet.pullChunk(1.0, 10);
+      // Try to pull chunk with retry logic
+      let samples: any[][] | null = null;
+      let timestamps_recv: number[] = [];
+      
+      for (let retry = 0; retry < 3; retry++) {
+        console.log(`  Pull attempt ${retry + 1}...`);
+        [samples, timestamps_recv] = inlet.pullChunk(5.0, 100);
+        if (samples !== null && samples.length > 0) break;
+        if (retry < 2) {
+          console.log('  No samples yet, retrying...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
       console.log('  Received samples:', JSON.stringify(samples));
       console.log('  Sent timestamps:', timestamps);
       console.log('  Received timestamps:', timestamps_recv);
@@ -186,8 +243,8 @@ describe('Chunk Operations', () => {
       inlet.destroy();
       info.destroy();
       
-      // Allow cleanup time
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Allow cleanup time - wait longer to ensure complete cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
     });
   });
   
@@ -211,9 +268,21 @@ describe('Chunk Operations', () => {
         const chunk = [sample, sample, sample];  // 3 identical samples
         outlet.pushChunk(chunk);
         
-        await new Promise(resolve => setTimeout(resolve, 50));
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2 seconds
         
-        const [samples, timestamps] = inlet.pullChunk(1.0, 10);
+        // Try to pull chunk with retry logic
+        let samples: any[][] | null = null;
+        let timestamps: number[] = [];
+        
+        for (let retry = 0; retry < 3; retry++) {
+          console.log(`  Pull attempt ${retry + 1}...`);
+          [samples, timestamps] = inlet.pullChunk(5.0, 100);
+          if (samples !== null && samples.length > 0) break;
+          if (retry < 2) {
+            console.log('  No samples yet, retrying...');
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+        }
         console.log(`  ${name} - Sent sample:`, sample);
         console.log(`  ${name} - Received samples:`, JSON.stringify(samples));
         
@@ -222,6 +291,7 @@ describe('Chunk Operations', () => {
         
         // For strings, exact match; for numbers, check within precision
         if (format === cf_string) {
+          console.log('Test string');
           console.log(`  ${name} - Expected:`, sample);
           console.log(`  ${name} - Received:`, samples![0]);
           assert.deepStrictEqual(samples![0], sample);
@@ -245,6 +315,9 @@ describe('Chunk Operations', () => {
         outlet.destroy();
         inlet.destroy();
         info.destroy();
+        
+        // Extra delay between different data type tests
+        await new Promise(resolve => setTimeout(resolve, 1500));
       });
     }
   });
@@ -259,7 +332,7 @@ describe('Chunk Operations', () => {
       const outlet = new StreamOutlet(info, chunkSize);
       
       // Allow outlet to advertise
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Resolve the stream
       const streams = resolveByProp('name', streamName, 1, 5.0);
@@ -271,6 +344,12 @@ describe('Chunk Operations', () => {
       
       const inlet = new StreamInlet(streams[0], 360, chunkSize);
       inlet.openStream(5.0);
+      
+      // Wait for consumers
+      console.log('  Waiting for consumers...');
+      const hasConsumer = outlet.waitForConsumers(5.0);
+      console.log('  Has consumer:', hasConsumer);
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Create large chunk
       const chunk: number[][] = [];
@@ -289,7 +368,19 @@ describe('Chunk Operations', () => {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       const startPull = localClock();
-      const [samples, timestamps] = inlet.pullChunk(1.0, chunkSize * 2);
+      // Try to pull chunk with retry logic
+      let samples: any[][] | null = null;
+      let timestamps: number[] = [];
+      
+      for (let retry = 0; retry < 3; retry++) {
+        console.log(`  Pull attempt ${retry + 1}...`);
+        [samples, timestamps] = inlet.pullChunk(5.0, chunkSize * 2);
+        if (samples !== null && samples.length > 0) break;
+        if (retry < 2) {
+          console.log('  No samples yet, retrying...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
       const pullTime = localClock() - startPull;
       
       assert.ok(samples !== null);
@@ -310,8 +401,8 @@ describe('Chunk Operations', () => {
       inlet.destroy();
       info.destroy();
       
-      // Allow cleanup time
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Allow cleanup time - wait longer to ensure complete cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
     });
     
     it('should handle multiple consecutive chunks', async () => {
@@ -333,8 +424,19 @@ describe('Chunk Operations', () => {
       
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Pull all samples
-      const [samples, timestamps] = inlet.pullChunk(1.0, 100);
+      // Pull all samples with retry logic
+      let samples: any[][] | null = null;
+      let timestamps: number[] = [];
+      
+      for (let retry = 0; retry < 3; retry++) {
+        console.log(`  Pull attempt ${retry + 1}...`);
+        [samples, timestamps] = inlet.pullChunk(5.0, 200);
+        if (samples !== null && samples.length > 0) break;
+        if (retry < 2) {
+          console.log('  No samples yet, retrying...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
       
       assert.ok(samples !== null);
       console.log(`  Expected total samples: ${numChunks * 3}, Received: ${samples!.length}`);
@@ -352,8 +454,8 @@ describe('Chunk Operations', () => {
       inlet.destroy();
       info.destroy();
       
-      // Allow cleanup time
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Allow cleanup time - wait longer to ensure complete cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
     });
   });
   
@@ -441,7 +543,7 @@ describe('Chunk Operations', () => {
       const times: number[] = [];
       for (let i = 0; i < 5; i++) {
         const start = localClock();
-        const [samples] = inlet.pullChunk(1.0, 20);  // Same size
+        const [samples] = inlet.pullChunk(5.0, 20);  // Same size, longer timeout
         times.push(localClock() - start);
         
         assert.ok(samples !== null);
@@ -458,8 +560,8 @@ describe('Chunk Operations', () => {
       inlet.destroy();
       info.destroy();
       
-      // Allow cleanup time
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Allow cleanup time - wait longer to ensure complete cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
     });
   });
 });

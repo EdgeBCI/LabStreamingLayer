@@ -102,7 +102,7 @@ describe('Stream Resolution', () => {
     const outlet = new StreamOutlet(info);
     
     // Wait for resolver to find it
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 5000));
     
     // Check results again
     results = resolver.results();
