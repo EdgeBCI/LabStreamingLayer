@@ -155,21 +155,21 @@ const lsl_continuous_resolver = koffi.opaque('lsl_continuous_resolver');
  * Functions for creating and managing stream metadata.
  * StreamInfo objects describe the properties of a data stream.
  * ============================================================================ */
-export const lsl_create_streaminfo = lib.func('void* lsl_create_streaminfo(str name, str type, int channel_count, double nominal_srate, int channel_format, str source_id)');
+export const lsl_create_streaminfo = lib.func('void* lsl_create_streaminfo(str name, str type, int32 channel_count, double nominal_srate, int32 channel_format, str source_id)');
 export const lsl_destroy_streaminfo = lib.func('void lsl_destroy_streaminfo(void* info)');
 export const lsl_get_name = lib.func('str lsl_get_name(void* info)');
 export const lsl_get_type = lib.func('str lsl_get_type(void* info)');
-export const lsl_get_channel_count = lib.func('int lsl_get_channel_count(void* info)');
+export const lsl_get_channel_count = lib.func('int32 lsl_get_channel_count(void* info)');
 export const lsl_get_nominal_srate = lib.func('double lsl_get_nominal_srate(void* info)');
-export const lsl_get_channel_format = lib.func('int lsl_get_channel_format(void* info)');
+export const lsl_get_channel_format = lib.func('int32 lsl_get_channel_format(void* info)');
 export const lsl_get_source_id = lib.func('str lsl_get_source_id(void* info)');
-export const lsl_get_version = lib.func('int lsl_get_version(void* info)');
+export const lsl_get_version = lib.func('int32 lsl_get_version(void* info)');
 export const lsl_get_created_at = lib.func('double lsl_get_created_at(void* info)');
 export const lsl_get_uid = lib.func('str lsl_get_uid(void* info)');
 export const lsl_get_session_id = lib.func('str lsl_get_session_id(void* info)');
 export const lsl_get_hostname = lib.func('str lsl_get_hostname(void* info)');
 export const lsl_get_desc = lib.func('void* lsl_get_desc(void* info)');
-export const lsl_get_xml = lib.func('str lsl_get_xml(void* info)');
+export const lsl_get_xml = lib.func('char* lsl_get_xml(void* info)');
 
 
 /* ============================================================================
@@ -178,10 +178,10 @@ export const lsl_get_xml = lib.func('str lsl_get_xml(void* info)');
  * Functions for broadcasting data streams to the network.
  * Outlets push samples to any connected inlets.
  * ============================================================================ */
-export const lsl_create_outlet = lib.func('void* lsl_create_outlet(void* info, int chunk_size, int max_buffered)');
+export const lsl_create_outlet = lib.func('void* lsl_create_outlet(void* info, int32 chunk_size, int32 max_buffered)');
 export const lsl_destroy_outlet = lib.func('void lsl_destroy_outlet(void* outlet)');
-export const lsl_have_consumers = lib.func('int lsl_have_consumers(void* outlet)');
-export const lsl_wait_for_consumers = lib.func('int lsl_wait_for_consumers(void* outlet, double timeout)');
+export const lsl_have_consumers = lib.func('int32 lsl_have_consumers(void* outlet)');
+export const lsl_wait_for_consumers = lib.func('int32 lsl_wait_for_consumers(void* outlet, double timeout)');
 export const lsl_get_info = lib.func('void* lsl_get_info(void* outlet)');
 
 
@@ -192,13 +192,13 @@ export const lsl_get_info = lib.func('void* lsl_get_info(void* outlet)');
  * The suffix indicates the data type: f=float32, d=double64, i=int32, etc.
  * The 'tp' suffix means timestamp and pushthrough parameters are included.
  * ============================================================================ */
-export const lsl_push_sample_f = lib.func('int lsl_push_sample_ftp(void* outlet, float* sample, double timestamp, int pushthrough)');
-export const lsl_push_sample_d = lib.func('int lsl_push_sample_dtp(void* outlet, double* sample, double timestamp, int pushthrough)');
-export const lsl_push_sample_i = lib.func('int lsl_push_sample_itp(void* outlet, int32* sample, double timestamp, int pushthrough)');
-export const lsl_push_sample_s = lib.func('int lsl_push_sample_stp(void* outlet, int16* sample, double timestamp, int pushthrough)');
-export const lsl_push_sample_c = lib.func('int lsl_push_sample_ctp(void* outlet, int8* sample, double timestamp, int pushthrough)');
-export const lsl_push_sample_str = lib.func('int lsl_push_sample_strtp(void* outlet, char** sample, double timestamp, int pushthrough)');
-export const lsl_push_sample_v = lib.func('int lsl_push_sample_vtp(void* outlet, void* sample, double timestamp, int pushthrough)');
+export const lsl_push_sample_f = lib.func('int32 lsl_push_sample_ftp(void* outlet, float* sample, double timestamp, int32 pushthrough)');
+export const lsl_push_sample_d = lib.func('int32 lsl_push_sample_dtp(void* outlet, double* sample, double timestamp, int32 pushthrough)');
+export const lsl_push_sample_i = lib.func('int32 lsl_push_sample_itp(void* outlet, int32* sample, double timestamp, int32 pushthrough)');
+export const lsl_push_sample_s = lib.func('int32 lsl_push_sample_stp(void* outlet, int16* sample, double timestamp, int32 pushthrough)');
+export const lsl_push_sample_c = lib.func('int32 lsl_push_sample_ctp(void* outlet, int8* sample, double timestamp, int32 pushthrough)');
+export const lsl_push_sample_str = lib.func('int32 lsl_push_sample_strtp(void* outlet, char** sample, double timestamp, int32 pushthrough)');
+export const lsl_push_sample_v = lib.func('int32 lsl_push_sample_vtp(void* outlet, void* sample, double timestamp, int32 pushthrough)');
 
 
 /* ============================================================================
@@ -208,18 +208,18 @@ export const lsl_push_sample_v = lib.func('int lsl_push_sample_vtp(void* outlet,
  * More efficient than pushing samples individually.
  * Suffix 't' versions accept individual timestamps for each sample.
  * ============================================================================ */
-export const lsl_push_chunk_f = lib.func('int lsl_push_chunk_ftp(void* outlet, float* samples, uint32 lengths, double timestamp, int pushthrough)');
-export const lsl_push_chunk_ft = lib.func('int lsl_push_chunk_ftnp(void* outlet, float* samples, uint32 lengths, double* timestamps, int pushthrough)');
-export const lsl_push_chunk_d = lib.func('int lsl_push_chunk_dtp(void* outlet, double* samples, uint32 lengths, double timestamp, int pushthrough)');
-export const lsl_push_chunk_dt = lib.func('int lsl_push_chunk_dtnp(void* outlet, double* samples, uint32 lengths, double* timestamps, int pushthrough)');
-export const lsl_push_chunk_i = lib.func('int lsl_push_chunk_itp(void* outlet, int32* samples, uint32 lengths, double timestamp, int pushthrough)');
-export const lsl_push_chunk_it = lib.func('int lsl_push_chunk_itnp(void* outlet, int32* samples, uint32 lengths, double* timestamps, int pushthrough)');
-export const lsl_push_chunk_s = lib.func('int lsl_push_chunk_stp(void* outlet, int16* samples, uint32 lengths, double timestamp, int pushthrough)');
-export const lsl_push_chunk_st = lib.func('int lsl_push_chunk_stnp(void* outlet, int16* samples, uint32 lengths, double* timestamps, int pushthrough)');
-export const lsl_push_chunk_c = lib.func('int lsl_push_chunk_ctp(void* outlet, int8* samples, uint32 lengths, double timestamp, int pushthrough)');
-export const lsl_push_chunk_ct = lib.func('int lsl_push_chunk_ctnp(void* outlet, int8* samples, uint32 lengths, double* timestamps, int pushthrough)');
-export const lsl_push_chunk_str = lib.func('int lsl_push_chunk_strtp(void* outlet, char** samples, uint32 lengths, double timestamp, int pushthrough)');
-export const lsl_push_chunk_strt = lib.func('int lsl_push_chunk_strtnp(void* outlet, char** samples, uint32 lengths, double* timestamps, int pushthrough)');
+export const lsl_push_chunk_f = lib.func('int32 lsl_push_chunk_ftp(void* outlet, float* data, ulong data_elements, double timestamp, int32 pushthrough)');
+export const lsl_push_chunk_ft = lib.func('int32 lsl_push_chunk_ftnp(void* outlet, float* data, ulong data_elements, double* timestamps, int32 pushthrough)');
+export const lsl_push_chunk_d = lib.func('int32 lsl_push_chunk_dtp(void* outlet, double* data, ulong data_elements, double timestamp, int32 pushthrough)');
+export const lsl_push_chunk_dt = lib.func('int32 lsl_push_chunk_dtnp(void* outlet, double* data, ulong data_elements, double* timestamps, int32 pushthrough)');
+export const lsl_push_chunk_i = lib.func('int32 lsl_push_chunk_itp(void* outlet, int32* data, ulong data_elements, double timestamp, int32 pushthrough)');
+export const lsl_push_chunk_it = lib.func('int32 lsl_push_chunk_itnp(void* outlet, int32* data, ulong data_elements, double* timestamps, int32 pushthrough)');
+export const lsl_push_chunk_s = lib.func('int32 lsl_push_chunk_stp(void* outlet, int16* data, ulong data_elements, double timestamp, int32 pushthrough)');
+export const lsl_push_chunk_st = lib.func('int32 lsl_push_chunk_stnp(void* outlet, int16* data, ulong data_elements, double* timestamps, int32 pushthrough)');
+export const lsl_push_chunk_c = lib.func('int32 lsl_push_chunk_ctp(void* outlet, int8* data, ulong data_elements, double timestamp, int32 pushthrough)');
+export const lsl_push_chunk_ct = lib.func('int32 lsl_push_chunk_ctnp(void* outlet, int8* data, ulong data_elements, double* timestamps, int32 pushthrough)');
+export const lsl_push_chunk_str = lib.func('int32 lsl_push_chunk_strtp(void* outlet, char** data, ulong data_elements, double timestamp, int32 pushthrough)');
+export const lsl_push_chunk_strt = lib.func('int32 lsl_push_chunk_strtnp(void* outlet, char** data, ulong data_elements, double* timestamps, int32 pushthrough)');
 
 
 /* ============================================================================
@@ -228,16 +228,16 @@ export const lsl_push_chunk_strt = lib.func('int lsl_push_chunk_strtnp(void* out
  * Functions for receiving data streams from the network.
  * Inlets pull samples from connected outlets.
  * ============================================================================ */
-export const lsl_create_inlet = lib.func('void* lsl_create_inlet(void* info, int max_buflen, int max_chunklen, int recover)');
+export const lsl_create_inlet = lib.func('void* lsl_create_inlet(void* info, int32 max_buflen, int32 max_chunklen, int32 recover)');
 export const lsl_destroy_inlet = lib.func('void lsl_destroy_inlet(void* inlet)');
-export const lsl_get_fullinfo = lib.func('void* lsl_get_fullinfo(void* inlet, double timeout, _Out_ int* errcode)');
-export const lsl_open_stream = lib.func('void lsl_open_stream(void* inlet, double timeout, _Out_ int* errcode)');
+export const lsl_get_fullinfo = lib.func('void* lsl_get_fullinfo(void* inlet, double timeout, _Out_ int32* errcode)');
+export const lsl_open_stream = lib.func('void lsl_open_stream(void* inlet, double timeout, _Out_ int32* errcode)');
 export const lsl_close_stream = lib.func('void lsl_close_stream(void* inlet)');
-export const lsl_time_correction = lib.func('double lsl_time_correction(void* inlet, double timeout, _Out_ int* errcode)');
-export const lsl_set_postprocessing = lib.func('int lsl_set_postprocessing(void* inlet, int flags)');
-export const lsl_samples_available = lib.func('int lsl_samples_available(void* inlet)');
-export const lsl_inlet_flush = lib.func('int lsl_inlet_flush(void* inlet)');
-export const lsl_was_clock_reset = lib.func('int lsl_was_clock_reset(void* inlet)');
+export const lsl_time_correction = lib.func('double lsl_time_correction(void* inlet, double timeout, _Out_ int32* errcode)');
+export const lsl_set_postprocessing = lib.func('int32 lsl_set_postprocessing(void* inlet, uint32 flags)');
+export const lsl_samples_available = lib.func('uint32 lsl_samples_available(void* inlet)');
+export const lsl_inlet_flush = lib.func('uint32 lsl_inlet_flush(void* inlet)');
+export const lsl_was_clock_reset = lib.func('uint32 lsl_was_clock_reset(void* inlet)');
 
 
 /* ============================================================================
@@ -246,13 +246,13 @@ export const lsl_was_clock_reset = lib.func('int lsl_was_clock_reset(void* inlet
  * Type-specific functions for pulling single samples.
  * Returns timestamp of the sample (0 if no sample available within timeout).
  * ============================================================================ */
-export const lsl_pull_sample_f = lib.func('double lsl_pull_sample_f(void* inlet, _Out_ float* sample, int buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_sample_d = lib.func('double lsl_pull_sample_d(void* inlet, _Out_ double* sample, int buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_sample_i = lib.func('double lsl_pull_sample_i(void* inlet, _Out_ int32* sample, int buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_sample_s = lib.func('double lsl_pull_sample_s(void* inlet, _Out_ int16* sample, int buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_sample_c = lib.func('double lsl_pull_sample_c(void* inlet, _Out_ int8* sample, int buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_sample_str = lib.func('double lsl_pull_sample_str(void* inlet, _Out_ char** sample, int buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_sample_v = lib.func('double lsl_pull_sample_v(void* inlet, _Out_ void* sample, int buffer_elements, double timeout, _Out_ int* errcode)');
+export const lsl_pull_sample_f = lib.func('double lsl_pull_sample_f(void* inlet, _Out_ float* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_sample_d = lib.func('double lsl_pull_sample_d(void* inlet, _Out_ double* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_sample_i = lib.func('double lsl_pull_sample_i(void* inlet, _Out_ int32* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_sample_s = lib.func('double lsl_pull_sample_s(void* inlet, _Out_ int16* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_sample_c = lib.func('double lsl_pull_sample_c(void* inlet, _Out_ int8* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_sample_str = lib.func('double lsl_pull_sample_str(void* inlet, _Out_ char** sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_sample_v = lib.func('double lsl_pull_sample_v(void* inlet, _Out_ void* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
 
 
 /* ============================================================================
@@ -261,12 +261,12 @@ export const lsl_pull_sample_v = lib.func('double lsl_pull_sample_v(void* inlet,
  * Type-specific functions for pulling multiple samples at once.
  * Returns the number of samples actually pulled.
  * ============================================================================ */
-export const lsl_pull_chunk_f = lib.func('uint32 lsl_pull_chunk_f(void* inlet, _Out_ float* data_buffer, _Out_ double* timestamp_buffer, uint32 data_buffer_elements, uint32 timestamp_buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_chunk_d = lib.func('uint32 lsl_pull_chunk_d(void* inlet, _Out_ double* data_buffer, _Out_ double* timestamp_buffer, uint32 data_buffer_elements, uint32 timestamp_buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_chunk_i = lib.func('uint32 lsl_pull_chunk_i(void* inlet, _Out_ int32* data_buffer, _Out_ double* timestamp_buffer, uint32 data_buffer_elements, uint32 timestamp_buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_chunk_s = lib.func('uint32 lsl_pull_chunk_s(void* inlet, _Out_ int16* data_buffer, _Out_ double* timestamp_buffer, uint32 data_buffer_elements, uint32 timestamp_buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_chunk_c = lib.func('uint32 lsl_pull_chunk_c(void* inlet, _Out_ int8* data_buffer, _Out_ double* timestamp_buffer, uint32 data_buffer_elements, uint32 timestamp_buffer_elements, double timeout, _Out_ int* errcode)');
-export const lsl_pull_chunk_str = lib.func('uint32 lsl_pull_chunk_str(void* inlet, _Out_ char** data_buffer, _Out_ double* timestamp_buffer, uint32 data_buffer_elements, uint32 timestamp_buffer_elements, double timeout, _Out_ int* errcode)');
+export const lsl_pull_chunk_f = lib.func('ulong lsl_pull_chunk_f(void* inlet, _Out_ float* data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_chunk_d = lib.func('ulong lsl_pull_chunk_d(void* inlet, _Out_ double* data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_chunk_i = lib.func('ulong lsl_pull_chunk_i(void* inlet, _Out_ int32* data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_chunk_s = lib.func('ulong lsl_pull_chunk_s(void* inlet, _Out_ int16* data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_chunk_c = lib.func('ulong lsl_pull_chunk_c(void* inlet, _Out_ int8* data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_chunk_str = lib.func('ulong lsl_pull_chunk_str(void* inlet, _Out_ char** data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
 
 
 /* ============================================================================
@@ -275,9 +275,9 @@ export const lsl_pull_chunk_str = lib.func('uint32 lsl_pull_chunk_str(void* inle
  * Functions for discovering available streams on the network.
  * Resolvers use multicast to find streams matching specific criteria.
  * ============================================================================ */
-export const lsl_resolve_all = lib.func('int lsl_resolve_all(_Out_ void** buffer, int buffer_elements, double wait_time)');
-export const lsl_resolve_byprop = lib.func('int lsl_resolve_byprop(_Out_ void** buffer, int buffer_elements, str prop, str value, int minimum, double timeout)');
-export const lsl_resolve_bypred = lib.func('int lsl_resolve_bypred(_Out_ void** buffer, int buffer_elements, str predicate, int minimum, double timeout)');
+export const lsl_resolve_all = lib.func('int32 lsl_resolve_all(_Out_ void** buffer, uint32 buffer_elements, double wait_time)');
+export const lsl_resolve_byprop = lib.func('int32 lsl_resolve_byprop(_Out_ void** buffer, uint32 buffer_elements, str prop, str value, int32 minimum, double timeout)');
+export const lsl_resolve_bypred = lib.func('int32 lsl_resolve_bypred(_Out_ void** buffer, uint32 buffer_elements, str predicate, int32 minimum, double timeout)');
 
 
 /* ============================================================================
@@ -290,7 +290,7 @@ export const lsl_create_continuous_resolver = lib.func('void* lsl_create_continu
 export const lsl_create_continuous_resolver_byprop = lib.func('void* lsl_create_continuous_resolver_byprop(str prop, str value, double forget_after)');
 export const lsl_create_continuous_resolver_bypred = lib.func('void* lsl_create_continuous_resolver_bypred(str predicate, double forget_after)');
 export const lsl_destroy_continuous_resolver = lib.func('void lsl_destroy_continuous_resolver(void* resolver)');
-export const lsl_resolver_results = lib.func('int lsl_resolver_results(void* resolver, _Out_ void** buffer, int buffer_elements)');
+export const lsl_resolver_results = lib.func('int32 lsl_resolver_results(void* resolver, _Out_ void** buffer, uint32 buffer_elements)');
 
 
 /* ============================================================================
@@ -300,8 +300,8 @@ export const lsl_resolver_results = lib.func('int lsl_resolver_results(void* res
  * Includes timing, version info, and memory management.
  * ============================================================================ */
 export const lsl_local_clock = lib.func('double lsl_local_clock()');
-export const lsl_protocol_version = lib.func('int lsl_protocol_version()');
-export const lsl_library_version = lib.func('int lsl_library_version()');
+export const lsl_protocol_version = lib.func('int32 lsl_protocol_version()');
+export const lsl_library_version = lib.func('int32 lsl_library_version()');
 export const lsl_library_info = lib.func('str lsl_library_info()');
 export const lsl_destroy_string = lib.func('void lsl_destroy_string(void* str)');
 
@@ -320,17 +320,17 @@ export const lsl_previous_sibling = lib.func('void* lsl_previous_sibling(void* e
 export const lsl_previous_sibling_n = lib.func('void* lsl_previous_sibling_n(void* e, str name)');
 export const lsl_parent = lib.func('void* lsl_parent(void* e)');
 export const lsl_child = lib.func('void* lsl_child(void* e, str name)');
-export const lsl_empty = lib.func('int lsl_empty(void* e)');
-export const lsl_is_text = lib.func('int lsl_is_text(void* e)');
+export const lsl_empty = lib.func('int32 lsl_empty(void* e)');
+export const lsl_is_text = lib.func('int32 lsl_is_text(void* e)');
 export const lsl_name = lib.func('str lsl_name(void* e)');
 export const lsl_value = lib.func('str lsl_value(void* e)');
 export const lsl_child_value = lib.func('str lsl_child_value(void* e)');
 export const lsl_child_value_n = lib.func('str lsl_child_value_n(void* e, str name)');
 export const lsl_append_child_value = lib.func('void* lsl_append_child_value(void* e, str name, str value)');
 export const lsl_prepend_child_value = lib.func('void* lsl_prepend_child_value(void* e, str name, str value)');
-export const lsl_set_child_value = lib.func('int lsl_set_child_value(void* e, str name, str value)');
-export const lsl_set_name = lib.func('int lsl_set_name(void* e, str name)');
-export const lsl_set_value = lib.func('int lsl_set_value(void* e, str value)');
+export const lsl_set_child_value = lib.func('int32 lsl_set_child_value(void* e, str name, str value)');
+export const lsl_set_name = lib.func('int32 lsl_set_name(void* e, str name)');
+export const lsl_set_value = lib.func('int32 lsl_set_value(void* e, str value)');
 export const lsl_append_child = lib.func('void* lsl_append_child(void* e, str name)');
 export const lsl_prepend_child = lib.func('void* lsl_prepend_child(void* e, str name)');
 export const lsl_append_copy = lib.func('void* lsl_append_copy(void* e, void* target)');

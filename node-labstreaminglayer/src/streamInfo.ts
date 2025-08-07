@@ -26,6 +26,7 @@ import {
   lsl_get_hostname,
   lsl_get_desc,
   lsl_get_xml,
+  lsl_destroy_string,
   lsl_first_child,
   lsl_last_child,
   lsl_next_sibling,
@@ -303,7 +304,16 @@ export class StreamInfo {
    * @returns {string} XML representation of all stream metadata
    */
   asXml(): string {
-    return lsl_get_xml(this.obj);
+    const xmlPtr = lsl_get_xml(this.obj);
+    if (!xmlPtr) {
+      return '';
+    }
+    // Convert the char* to a JavaScript string
+    // Koffi will handle the conversion from char* to string
+    const xmlString = xmlPtr as unknown as string;
+    // Free the allocated memory
+    lsl_destroy_string(xmlPtr);
+    return xmlString;
   }
   
   /* ============================================================================
