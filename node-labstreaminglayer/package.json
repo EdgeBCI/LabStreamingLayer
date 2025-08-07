@@ -1,6 +1,6 @@
 {
   "name": "node-labstreaminglayer",
-  "version": "1.0.2",
+  "version": "1.0.0",
   "description": "Node.js bindings for Lab Streaming Layer (LSL)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,7 +28,8 @@
     "real-time",
     "neuroscience",
     "bci",
-    "brain-computer-interface"
+    "brain-computer-interface",
+    "data-synchronization"
   ],
   "author": "Haowen Wei <hwjwei@mit.edu>",
   "license": "MIT",
@@ -55,6 +56,7 @@
   "files": [
     "dist",
     "!dist/test",
+    "src",
     "prebuild",
     "README.md",
     "LICENSE"
