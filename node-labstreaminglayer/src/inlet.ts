@@ -115,6 +115,9 @@ export class StreamInlet {
         case 6: // cf_int8
           TypedArray = Int8Array;
           break;
+        case 7: // cf_int64
+          TypedArray = BigInt64Array;
+          break;
         default:
           throw new Error(`Unsupported channel format: ${this.channelFormat}`);
       }
@@ -260,6 +263,9 @@ export class StreamInlet {
             break;
           case 6: // cf_int8
             TypedArray = Int8Array;
+            break;
+          case 7: // cf_int64
+            TypedArray = BigInt64Array;
             break;
           default:
             throw new Error(`Unsupported channel format: ${this.channelFormat}`);

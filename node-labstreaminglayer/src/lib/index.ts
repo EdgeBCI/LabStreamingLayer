@@ -197,6 +197,7 @@ export const lsl_push_sample_d = lib.func('int32 lsl_push_sample_dtp(void* outle
 export const lsl_push_sample_i = lib.func('int32 lsl_push_sample_itp(void* outlet, int32* sample, double timestamp, int32 pushthrough)');
 export const lsl_push_sample_s = lib.func('int32 lsl_push_sample_stp(void* outlet, int16* sample, double timestamp, int32 pushthrough)');
 export const lsl_push_sample_c = lib.func('int32 lsl_push_sample_ctp(void* outlet, int8* sample, double timestamp, int32 pushthrough)');
+export const lsl_push_sample_l = lib.func('int32 lsl_push_sample_ltp(void* outlet, int64* sample, double timestamp, int32 pushthrough)');
 export const lsl_push_sample_str = lib.func('int32 lsl_push_sample_strtp(void* outlet, char** sample, double timestamp, int32 pushthrough)');
 export const lsl_push_sample_v = lib.func('int32 lsl_push_sample_vtp(void* outlet, void* sample, double timestamp, int32 pushthrough)');
 
@@ -218,6 +219,8 @@ export const lsl_push_chunk_s = lib.func('int32 lsl_push_chunk_stp(void* outlet,
 export const lsl_push_chunk_st = lib.func('int32 lsl_push_chunk_stnp(void* outlet, int16* data, ulong data_elements, double* timestamps, int32 pushthrough)');
 export const lsl_push_chunk_c = lib.func('int32 lsl_push_chunk_ctp(void* outlet, int8* data, ulong data_elements, double timestamp, int32 pushthrough)');
 export const lsl_push_chunk_ct = lib.func('int32 lsl_push_chunk_ctnp(void* outlet, int8* data, ulong data_elements, double* timestamps, int32 pushthrough)');
+export const lsl_push_chunk_l = lib.func('int32 lsl_push_chunk_ltp(void* outlet, int64* data, ulong data_elements, double timestamp, int32 pushthrough)');
+export const lsl_push_chunk_lt = lib.func('int32 lsl_push_chunk_ltnp(void* outlet, int64* data, ulong data_elements, double* timestamps, int32 pushthrough)');
 export const lsl_push_chunk_str = lib.func('int32 lsl_push_chunk_strtp(void* outlet, char** data, ulong data_elements, double timestamp, int32 pushthrough)');
 export const lsl_push_chunk_strt = lib.func('int32 lsl_push_chunk_strtnp(void* outlet, char** data, ulong data_elements, double* timestamps, int32 pushthrough)');
 
@@ -251,6 +254,7 @@ export const lsl_pull_sample_d = lib.func('double lsl_pull_sample_d(void* inlet,
 export const lsl_pull_sample_i = lib.func('double lsl_pull_sample_i(void* inlet, _Out_ int32* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
 export const lsl_pull_sample_s = lib.func('double lsl_pull_sample_s(void* inlet, _Out_ int16* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
 export const lsl_pull_sample_c = lib.func('double lsl_pull_sample_c(void* inlet, _Out_ int8* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_sample_l = lib.func('double lsl_pull_sample_l(void* inlet, _Out_ int64* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
 export const lsl_pull_sample_str = lib.func('double lsl_pull_sample_str(void* inlet, _Out_ char** sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
 export const lsl_pull_sample_v = lib.func('double lsl_pull_sample_v(void* inlet, _Out_ void* sample, int32 buffer_elements, double timeout, _Out_ int32* errcode)');
 
@@ -266,6 +270,7 @@ export const lsl_pull_chunk_d = lib.func('ulong lsl_pull_chunk_d(void* inlet, _O
 export const lsl_pull_chunk_i = lib.func('ulong lsl_pull_chunk_i(void* inlet, _Out_ int32* data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
 export const lsl_pull_chunk_s = lib.func('ulong lsl_pull_chunk_s(void* inlet, _Out_ int16* data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
 export const lsl_pull_chunk_c = lib.func('ulong lsl_pull_chunk_c(void* inlet, _Out_ int8* data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
+export const lsl_pull_chunk_l = lib.func('ulong lsl_pull_chunk_l(void* inlet, _Out_ int64* data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
 export const lsl_pull_chunk_str = lib.func('ulong lsl_pull_chunk_str(void* inlet, _Out_ char** data_buffer, _Out_ double* timestamp_buffer, ulong data_buffer_elements, ulong timestamp_buffer_elements, double timeout, _Out_ int32* errcode)');
 
 
@@ -368,6 +373,7 @@ export const fmt2push_sample: { [key: number]: any } = {
   [cf_int32]: lsl_push_sample_i,
   [cf_int16]: lsl_push_sample_s,
   [cf_int8]: lsl_push_sample_c,
+  [cf_int64]: lsl_push_sample_l,
 };
 
 /**
@@ -381,6 +387,7 @@ export const fmt2push_chunk: { [key: number]: any } = {
   [cf_int32]: lsl_push_chunk_i,
   [cf_int16]: lsl_push_chunk_s,
   [cf_int8]: lsl_push_chunk_c,
+  [cf_int64]: lsl_push_chunk_l,
 };
 
 /**
@@ -394,6 +401,7 @@ export const fmt2push_chunk_n: { [key: number]: any } = {
   [cf_int32]: lsl_push_chunk_it,
   [cf_int16]: lsl_push_chunk_st,
   [cf_int8]: lsl_push_chunk_ct,
+  [cf_int64]: lsl_push_chunk_lt,
 };
 
 /**
@@ -407,6 +415,7 @@ export const fmt2pull_sample: { [key: number]: any } = {
   [cf_int32]: lsl_pull_sample_i,
   [cf_int16]: lsl_pull_sample_s,
   [cf_int8]: lsl_pull_sample_c,
+  [cf_int64]: lsl_pull_sample_l,
 };
 
 /**
@@ -420,4 +429,5 @@ export const fmt2pull_chunk: { [key: number]: any } = {
   [cf_int32]: lsl_pull_chunk_i,
   [cf_int16]: lsl_pull_chunk_s,
   [cf_int8]: lsl_pull_chunk_c,
+  [cf_int64]: lsl_pull_chunk_l,
 };
