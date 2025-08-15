@@ -14,6 +14,7 @@ import koffi from 'koffi';
 import { platform, arch } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 
 // Get the directory of this module for resolving library paths
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -26,8 +27,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * - macOS: Uses lsl.dylib (universal binary for x64/ARM64)
  * - Linux: Uses lsl.so (requires system installation)
  * 
+ * This function is Electron-aware and will check multiple paths including:
+ * - Standard path in node_modules
+ * - Unpacked path when in ASAR archive (Electron production)
+ * - Electron resources path
+ * 
  * @returns {string} Absolute path to the platform-specific LSL library
- * @throws {Error} If the platform is not supported
+ * @throws {Error} If the platform is not supported or library cannot be found
  */
 function getLibraryPath(): string {
   const platformName = platform();
@@ -48,8 +54,56 @@ function getLibraryPath(): string {
     throw new Error(`Unsupported platform: ${platformName}`);
   }
   
-  // Resolve to prebuild directory containing platform binaries
-  return join(__dirname, '..', '..', 'prebuild', libName);
+  // Build list of possible paths to try
+  const possiblePaths: string[] = [];
+  
+  // 1. Standard path (works in development and regular Node.js)
+  const standardPath = join(__dirname, '..', '..', 'prebuild', libName);
+  possiblePaths.push(standardPath);
+  
+  // 2. Check if we're in an ASAR archive (Electron production)
+  if (standardPath.includes('app.asar')) {
+    // Try the unpacked version (where native modules must be extracted)
+    const unpackedPath = standardPath.replace('app.asar', 'app.asar.unpacked');
+    possiblePaths.push(unpackedPath);
+  }
+  
+  // 3. Try Electron's resources path if available (production Electron)
+  // @ts-ignore - process.resourcesPath is an Electron-specific property
+  if (typeof process !== 'undefined' && process.resourcesPath) {
+    // @ts-ignore
+    const resourcesPath = process.resourcesPath;
+    possiblePaths.push(join(resourcesPath, 'app.asar.unpacked', 'node_modules', 'node-labstreaminglayer', 'prebuild', libName));
+    possiblePaths.push(join(resourcesPath, 'node_modules', 'node-labstreaminglayer', 'prebuild', libName));
+  }
+  
+  // 4. Check for Electron app path
+  // @ts-ignore - global.app is an Electron-specific property  
+  if (typeof global !== 'undefined' && global.app?.getPath) {
+    try {
+      // @ts-ignore
+      const appPath = global.app.getPath('exe');
+      const exeDir = dirname(appPath);
+      possiblePaths.push(join(exeDir, 'resources', 'app.asar.unpacked', 'node_modules', 'node-labstreaminglayer', 'prebuild', libName));
+    } catch (e) {
+      // Ignore if not in Electron main process
+    }
+  }
+  
+  // Find the first existing path
+  for (const path of possiblePaths) {
+    if (existsSync(path)) {
+      return path;
+    }
+  }
+  
+  // If no path exists, throw an error with helpful information
+  throw new Error(
+    `Failed to find LSL library '${libName}'. Searched paths:\n` +
+    possiblePaths.map(p => `  - ${p}`).join('\n') +
+    '\n\nFor Electron apps, ensure native modules are unpacked from ASAR.\n' +
+    'See: https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules'
+  );
 }
 
 // Load the LSL library using Koffi FFI
