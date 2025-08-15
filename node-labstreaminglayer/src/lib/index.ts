@@ -39,11 +39,11 @@ function getLibraryPath(): string {
     // x64 (64-bit) uses amd64, x86 (32-bit) uses i386
     libName = archName === 'x64' ? 'lsl_amd64.dll' : 'lsl_i386.dll';
   } else if (platformName === 'darwin') {
-    // macOS: Universal binary supports both Intel and Apple Silicon
-    libName = 'lsl.dylib';
+    // macOS: Use standard liblsl prefix (supports Intel x64)
+    libName = 'liblsl.dylib';
   } else if (platformName === 'linux') {
-    // Linux: Shared object file (requires liblsl to be installed)
-    libName = 'lsl.so';
+    // Linux: Use standard liblsl prefix
+    libName = 'liblsl.so';
   } else {
     throw new Error(`Unsupported platform: ${platformName}`);
   }
