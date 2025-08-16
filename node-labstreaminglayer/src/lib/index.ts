@@ -14,6 +14,7 @@ import koffi from 'koffi';
 import { platform, arch } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 
 // Get the directory of this module for resolving library paths
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +26,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * - Windows: Uses lsl_amd64.dll (x64) or lsl_i386.dll (x86)
  * - macOS: Uses lsl.dylib (universal binary for x64/ARM64)
  * - Linux: Uses lsl.so (requires system installation)
+ * 
+ * Handles Electron ASAR packaging by automatically detecting and adjusting paths
+ * when native binaries are unpacked from app.asar to app.asar.unpacked.
  * 
  * @returns {string} Absolute path to the platform-specific LSL library
  * @throws {Error} If the platform is not supported
@@ -49,7 +53,43 @@ function getLibraryPath(): string {
   }
   
   // Resolve to prebuild directory containing platform binaries
-  return join(__dirname, '..', '..', 'prebuild', libName);
+  let basePath = join(__dirname, '..', '..', 'prebuild', libName);
+  
+  // In production Electron apps, native binaries are extracted from app.asar to app.asar.unpacked
+  // Check if we're in an ASAR archive and adjust the path accordingly
+  if (basePath.includes('app.asar') && !basePath.includes('app.asar.unpacked')) {
+    basePath = basePath.replace('app.asar', 'app.asar.unpacked');
+  }
+  
+  // Try multiple possible paths to find the library
+  const possiblePaths = [
+    basePath,
+    // Fallback: try replacing app.asar again in case it appears elsewhere in path
+    basePath.replace(/app\.asar(?!\.unpacked)/g, 'app.asar.unpacked')
+  ];
+  
+  // In Electron production builds, also check process.resourcesPath
+  // Use type assertion since resourcesPath is Electron-specific
+  if (typeof process !== 'undefined' && (process as any).resourcesPath) {
+    possiblePaths.push(
+      join((process as any).resourcesPath, 'app.asar.unpacked', 'node_modules', 'node-labstreaminglayer', 'prebuild', libName)
+    );
+  }
+  
+  // Also try the original path (for development environments)
+  possiblePaths.push(join(__dirname, '..', '..', 'prebuild', libName));
+  
+  // Find the first path that actually exists
+  for (const tryPath of possiblePaths) {
+    if (tryPath && existsSync(tryPath)) {
+      console.log('[node-labstreaminglayer] Loading library from:', tryPath);
+      return tryPath;
+    }
+  }
+  
+  // If no path exists, return the most likely one with a warning
+  console.warn('[node-labstreaminglayer] Could not verify library path, attempting to load from:', basePath);
+  return basePath;
 }
 
 // Load the LSL library using Koffi FFI
