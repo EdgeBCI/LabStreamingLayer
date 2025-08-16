@@ -14,7 +14,6 @@ import koffi from 'koffi';
 import { platform, arch } from 'os';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
 
 // Get the directory of this module for resolving library paths
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,45 +22,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * Determines the correct LSL library file based on the current platform and architecture.
  * 
  * Supported platforms:
- * - Windows: Uses lsl_amd64.dll (x64/ARM64) or lsl_i386.dll (x86/ia32)
- * - macOS: Uses liblsl.dylib (universal binary for x64/ARM64)
- * - Linux: Uses liblsl.so
- * 
- * This function is Electron-aware and will check multiple paths including:
- * - Standard path in node_modules (for regular Node.js and development)
- * - Unpacked path when in ASAR archive (Electron production)
- * - Electron resources path
+ * - Windows: Uses lsl_amd64.dll (x64) or lsl_i386.dll (x86)
+ * - macOS: Uses lsl.dylib (universal binary for x64/ARM64)
+ * - Linux: Uses lsl.so (requires system installation)
  * 
  * @returns {string} Absolute path to the platform-specific LSL library
- * @throws {Error} If the platform is not supported or library cannot be found
+ * @throws {Error} If the platform is not supported
  */
 function getLibraryPath(): string {
   const platformName = platform();
   const archName = arch();
   
-  // Enhanced logging for debugging (only in development mode)
-  const isDev = process.env.NODE_ENV === 'development' || process.env.DEBUG_LSL;
-  if (isDev) {
-    console.log('[LSL] Platform:', platformName, 'Architecture:', archName);
-    console.log('[LSL] Module directory:', __dirname);
-  }
-  
   let libName: string;
   if (platformName === 'win32') {
     // Windows: Select DLL based on architecture
-    // x64 (64-bit) and arm64 use amd64, x86/ia32 (32-bit) uses i386
-    // ARM64 Windows can run x64 binaries through emulation
-    if (archName === 'x64' || archName === 'arm64') {
-      libName = 'lsl_amd64.dll';
-    } else if (archName === 'ia32' || archName === 'x86') {
-      libName = 'lsl_i386.dll';
-    } else {
-      // Fallback to 64-bit for unknown architectures
-      console.warn(`[LSL] Unknown Windows architecture '${archName}', defaulting to x64 library`);
-      libName = 'lsl_amd64.dll';
-    }
+    // x64 (64-bit) uses amd64, x86 (32-bit) uses i386
+    libName = archName === 'x64' ? 'lsl_amd64.dll' : 'lsl_i386.dll';
   } else if (platformName === 'darwin') {
-    // macOS: Use standard liblsl prefix (universal binary supports both Intel x64 and Apple Silicon ARM64)
+    // macOS: Use standard liblsl prefix (supports Intel x64)
     libName = 'liblsl.dylib';
   } else if (platformName === 'linux') {
     // Linux: Use standard liblsl prefix
@@ -70,114 +48,8 @@ function getLibraryPath(): string {
     throw new Error(`Unsupported platform: ${platformName}`);
   }
   
-  // Build list of possible paths to try
-  const possiblePaths: string[] = [];
-  
-  // 1. Standard path (works when installed via npm)
-  // From dist/lib/ we go up 2 levels to package root where prebuild/ is located
-  const standardPath = join(__dirname, '..', '..', 'prebuild', libName);
-  possiblePaths.push(standardPath);
-  
-  // 2. Check if we're in an ASAR archive (Electron production)
-  if (standardPath.includes('app.asar')) {
-    // Use word boundary regex replacement for safer ASAR unpacking
-    // This prevents replacing 'app.asar' in paths like 'myapp.asarfile'
-    const unpackedPath = standardPath.replace(/\bapp\.asar\b/, 'app.asar.unpacked');
-    possiblePaths.push(unpackedPath);
-    
-    // Also try with the more specific Electron build structure
-    // Some Electron apps may have different directory structures
-    if (__dirname.includes('app.asar')) {
-      const electronModulePath = __dirname.replace(/\bapp\.asar\b/, 'app.asar.unpacked');
-      const electronLibPath = join(electronModulePath, '..', '..', 'prebuild', libName);
-      if (electronLibPath !== unpackedPath) {
-        possiblePaths.push(electronLibPath);
-      }
-    }
-  }
-  
-  // 3. Try Electron's resources path if available (production Electron)
-  // @ts-ignore - process.resourcesPath is an Electron-specific property
-  if (typeof process !== 'undefined' && process.resourcesPath) {
-    // @ts-ignore
-    const resourcesPath = process.resourcesPath;
-    
-    // Try multiple possible locations under resources
-    const resourcesPaths = [
-      // Most common: unpacked in app.asar.unpacked
-      join(resourcesPath, 'app.asar.unpacked', 'node_modules', 'node-labstreaminglayer', 'prebuild', libName),
-      // Alternative: direct in resources (less common)
-      join(resourcesPath, 'node_modules', 'node-labstreaminglayer', 'prebuild', libName),
-      // Some builds might have different structure
-      join(resourcesPath, 'app', 'node_modules', 'node-labstreaminglayer', 'prebuild', libName),
-    ];
-    
-    possiblePaths.push(...resourcesPaths);
-  }
-  
-  // 4. Check for Electron app path (for main process)
-  // @ts-ignore - global.app is an Electron-specific property  
-  if (typeof global !== 'undefined' && global.app?.getPath) {
-    try {
-      // @ts-ignore
-      const appPath = global.app.getPath('exe');
-      const exeDir = dirname(appPath);
-      
-      // Common Electron build structure
-      possiblePaths.push(join(exeDir, 'resources', 'app.asar.unpacked', 'node_modules', 'node-labstreaminglayer', 'prebuild', libName));
-      
-      // Alternative structure for some Electron builders
-      possiblePaths.push(join(exeDir, '..', 'Resources', 'app.asar.unpacked', 'node_modules', 'node-labstreaminglayer', 'prebuild', libName));
-    } catch (e) {
-      // Ignore if not in Electron main process or if app is not available
-      if (isDev) {
-        console.log('[LSL] Could not get Electron app path:', e);
-      }
-    }
-  }
-  
-  // 5. Development/source paths (useful during development)
-  if (isDev) {
-    // Try relative to source directory during development
-    const devPath = join(__dirname, '..', '..', '..', '..', 'prebuild', libName);
-    possiblePaths.push(devPath);
-    
-    // Also try the source directory structure
-    const srcPath = join(__dirname.replace(/dist[\\\/]lib/, 'prebuild'), libName);
-    possiblePaths.push(srcPath);
-  }
-  
-  // Remove duplicate paths to avoid redundant checks
-  const uniquePaths = [...new Set(possiblePaths)];
-  
-  // Log all paths being checked in debug mode
-  if (isDev) {
-    console.log('[LSL] Searching for library in:');
-    uniquePaths.forEach(p => console.log(`  - ${p}`));
-  }
-  
-  // Find the first existing path
-  for (const path of uniquePaths) {
-    if (existsSync(path)) {
-      if (isDev) {
-        console.log('[LSL] Found library at:', path);
-      }
-      return path;
-    }
-  }
-  
-  // If no path exists, throw an error with helpful information
-  throw new Error(
-    `Failed to find LSL library '${libName}' for ${platformName}/${archName}.\n\n` +
-    `Searched paths:\n` +
-    uniquePaths.map(p => `  - ${p}`).join('\n') +
-    '\n\nTroubleshooting:\n' +
-    '1. For Electron apps, ensure native modules are unpacked from ASAR:\n' +
-    '   Add to package.json: "build": { "asarUnpack": ["**/node-labstreaminglayer/**"] }\n' +
-    '2. Verify the prebuild folder contains the native libraries\n' +
-    '3. Try setting NODE_ENV=development or DEBUG_LSL=true for detailed logging\n' +
-    '4. See: https://www.electronjs.org/docs/latest/tutorial/using-native-node-modules'
-  );
+  // Resolve to prebuild directory containing platform binaries
+  return join(__dirname, '..', '..', 'prebuild', libName);
 }
 
 // Load the LSL library using Koffi FFI
