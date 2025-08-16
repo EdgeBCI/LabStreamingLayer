@@ -141,6 +141,6 @@ vite.config.ts.timestamp-*
 
 .claude/
 
-CLAUDE.md
+# CLAUDE.md
 
 prompt/
